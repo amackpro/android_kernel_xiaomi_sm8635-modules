@@ -23,8 +23,7 @@ KBUILD_OPTIONS += MODNAME?=wlan
 endif
 
 WLAN_CHIPSET := qca_cld3
-LOCAL_DEV_NAME := $(patsubst .%,%,\
-	$(lastword $(strip $(subst /, ,$(M)))))
+LOCAL_DEV_NAME := qca6750
 
 KBUILD_EXTRA := \
     CONFIG_IPA_OUT_OF_TREE=y \
@@ -34,8 +33,8 @@ KBUILD_EXTRA := \
     DEVNAME=$(LOCAL_DEV_NAME)
 
 KBUILD_OPTIONS += \
-    KBUILD_EXTRA_SYMBOLS=$(M)/../../../dataipa/drivers/platform/msm/Module.symvers \
-    KBUILD_EXTRA_SYMBOLS+=$(M)/../../platform/Module.symvers
+    KBUILD_EXTRA_SYMBOLS=$(M)/../../dataipa/drivers/platform/msm/Module.symvers \
+    KBUILD_EXTRA_SYMBOLS+=$(M)/../platform/Module.symvers
 
 #By default build for CLD
 WLAN_SELECT := CONFIG_QCA_CLD_WLAN=m
