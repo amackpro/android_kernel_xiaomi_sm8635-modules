@@ -62,11 +62,13 @@
 #if FTS_POWER_SOURCE_CUST_EN
 #define FTS_VTG_MIN_UV 2800000
 #define FTS_VTG_MAX_UV 3300000
-#define FTS_IOVCC_VTG_MIN_UV 1800000
-#define FTS_IOVCC_VTG_MAX_UV 1800000
+#define FTS_I2C_VTG_MIN_UV                  1800000
+#define FTS_I2C_VTG_MAX_UV                  1800000
 #endif
 
 #define FTS_WAKELOCK_TIMEOUT 5000
+
+#define DUMPBUFF_HEAD (1+1+24)
 
 /*****************************************************************************
 * Global variable or extern global variabls/functions
@@ -75,9 +77,9 @@ struct fts_ts_data *fts_data;
 
 static int fts_fod_recovery(struct fts_ts_data *ts_data);
 
-/*****************************************************************************
-* Static function prototypes
-*****************************************************************************/
+static hardware_param_t fts_hardware_param;
+static hardware_operation_t fts_hardware_operation;
+
 void fts_msleep(unsigned long msecs)
 {
 	if (msecs > 20) {
@@ -324,89 +326,41 @@ static int fts_match_cid(struct fts_ts_data *ts_data, u16 type, u8 id_h,
 #endif
 }
 
-static int fts_get_chip_types(struct fts_ts_data *ts_data, u8 id_h, u8 id_l,
-			      bool fw_valid)
+static int fts_get_chip_types(
+    struct fts_ts_data *ts_data,
+    u8 id_h, u8 id_l, bool fw_valid)
 {
-	u32 i = 0;
-	struct ft_chip_t ctype_3683g[] = FTS_CHIP_TYPE_MAPPING_3683g;
-	struct ft_chip_t ctype_3681[] = FTS_CHIP_TYPE_MAPPING_3681;
-	u32 ctype_entries = 0;
+    u32 i = 0;
+    struct ft_chip_t ctype[] = FTS_CHIP_TYPE_MAPPING;
+    u32 ctype_entries = sizeof(ctype) / sizeof(struct ft_chip_t);
 
-	if ((0x0 == id_h) || (0x0 == id_l)) {
-		FTS_ERROR("id_h/id_l is 0");
-		return -EINVAL;
-	}
+    if ((id_h == 0x0) || (id_l == 0x0)) {
+        FTS_ERROR("id_h/id_l is 0");
+        return -EINVAL;
+    }
 
-	FTS_INFO("verify id:0x%02x%02x", id_h, id_l);
+    FTS_INFO("verify id:0x%02x%02x", id_h, id_l);
+    for (i = 0; i < ctype_entries; i++) {
+        if (fw_valid == VALID) {
+            if (((id_h == ctype[i].chip_idh) && (id_l == ctype[i].chip_idl))
+                || (!fts_match_cid(ts_data, ctype[i].type, id_h, id_l, 0)))
+                break;
+        } else {
+            if (((id_h == ctype[i].rom_idh) && (id_l == ctype[i].rom_idl))
+                || ((id_h == ctype[i].pb_idh) && (id_l == ctype[i].pb_idl))
+                || ((id_h == ctype[i].bl_idh) && (id_l == ctype[i].bl_idl))) {
+                break;
+            }
+        }
+    }
 
-	if (id_l == 0x72 || id_l == 0xb3 || id_l == 0x56) {
-		FTS_CHIP_TYPE = _FT3683G;
-		ts_data->ic_type_flag = true;
-		FTS_DEBUG("choose 3683g\n");
-		ctype_entries = sizeof(ctype_3683g) / sizeof(struct ft_chip_t);
-		for (i = 0; i < ctype_entries; i++) {
-			if (VALID == fw_valid) {
-				if (((id_h == ctype_3683g[i].chip_idh) &&
-				     (id_l == ctype_3683g[i].chip_idl)) ||
-				    (!fts_match_cid(ts_data,
-						    ctype_3683g[i].type, id_h,
-						    id_l, 0)))
-					break;
-			} else {
-				if (((id_h == ctype_3683g[i].rom_idh) &&
-				     (id_l == ctype_3683g[i].rom_idl)) ||
-				    ((id_h == ctype_3683g[i].pb_idh) &&
-				     (id_l == ctype_3683g[i].pb_idl)) ||
-				    ((id_h == ctype_3683g[i].bl_idh) &&
-				     (id_l == ctype_3683g[i].bl_idl))) {
-					break;
-				}
-			}
-		}
+    if (i >= ctype_entries) {
+        return -ENODATA;
+    }
 
-		if (i >= ctype_entries) {
-			return -ENODATA;
-		}
-
-		fts_match_cid(ts_data, ctype_3683g[i].type, id_h, id_l, 1);
-		ts_data->ic_info.ids = ctype_3683g[i];
-	} else if (id_l == 0x62) {
-		FTS_CHIP_TYPE = _FT3681;
-		ts_data->ic_type_flag = false;
-		FTS_DEBUG("choose 3681\n");
-
-		ctype_entries = sizeof(ctype_3681) / sizeof(struct ft_chip_t);
-		for (i = 0; i < ctype_entries; i++) {
-			if (VALID == fw_valid) {
-				if (((id_h == ctype_3681[i].chip_idh) &&
-				     (id_l == ctype_3681[i].chip_idl)) ||
-				    (!fts_match_cid(ts_data, ctype_3681[i].type,
-						    id_h, id_l, 0)))
-					break;
-			} else {
-				if (((id_h == ctype_3681[i].rom_idh) &&
-				     (id_l == ctype_3681[i].rom_idl)) ||
-				    ((id_h == ctype_3681[i].pb_idh) &&
-				     (id_l == ctype_3681[i].pb_idl)) ||
-				    ((id_h == ctype_3681[i].bl_idh) &&
-				     (id_l == ctype_3681[i].bl_idl))) {
-					break;
-				}
-			}
-		}
-
-		if (i >= ctype_entries) {
-			return -ENODATA;
-		}
-
-		fts_match_cid(ts_data, ctype_3681[i].type, id_h, id_l, 1);
-		ts_data->ic_info.ids = ctype_3681[i];
-	} else {
-		FTS_DEBUG("get chip wrong\n");
-		return -EINVAL;
-	}
-
-	return 0;
+    fts_match_cid(ts_data, ctype[i].type, id_h, id_l, 1);
+    ts_data->ic_info.ids = ctype[i];
+    return 0;
 }
 
 static int fts_read_bootid(struct fts_ts_data *ts_data, u8 *id)
@@ -748,7 +702,7 @@ static int fts_input_report_b(struct fts_ts_data *ts_data,
 		if (ts_data->touch_points && (ts_data->log_level >= 1))
 			FTS_DEBUG("[B]Points All Up!");
 		input_report_key(input_dev, BTN_TOUCH, 0);
-		notify_oneshot_sensor(ONESHOT_SENSOR_FOD_PRESS, 0);
+		update_fod_press_status(0);
 	}
 
 	ts_data->touch_points = touch_down_point_cur;
@@ -1122,7 +1076,7 @@ static int fts_read_touchdata_spi(struct fts_ts_data *ts_data, u8 *buf)
 	return 0;
 }
 
-static int fts_read_touchdata_i2c(struct fts_ts_data *ts_data, u8 *buf)
+static __maybe_unused int fts_read_touchdata_i2c(struct fts_ts_data *ts_data, u8 *buf)
 {
 	int ret = 0;
 	u32 touch_max_size = 0;
@@ -1171,55 +1125,31 @@ static int fts_read_touchdata_i2c(struct fts_ts_data *ts_data, u8 *buf)
 
 static int fts_read_parse_touchdata(struct fts_ts_data *ts_data, u8 *touch_buf)
 {
-	int ret = 0;
+    int ret = 0;
 
-	memset(touch_buf, 0xFF, FTS_MAX_TOUCH_BUF);
-	ts_data->ta_size = ts_data->touch_size;
+    memset(touch_buf, 0xFF, FTS_MAX_TOUCH_BUF - DUMPBUFF_HEAD);
+    ts_data->ta_size = ts_data->touch_size;
 
-	/*read touch data*/
-	if (ts_data->bus_type == BUS_TYPE_SPI)
-		ret = fts_read_touchdata_spi(ts_data, touch_buf);
-	else if (ts_data->bus_type == BUS_TYPE_I2C)
-		ret = fts_read_touchdata_i2c(ts_data, touch_buf);
-	else
-		FTS_ERROR("unknown bus type:%d", ts_data->bus_type);
-	if (ret < 0) {
-		FTS_ERROR("unknown BUS type");
-		return TOUCH_ERROR;
-	}
+    /*read touch data*/
+    ret = fts_read_touchdata_spi(ts_data, touch_buf);
+    if (ret < 0) {
+        FTS_ERROR("read touch data fails");
+        return TOUCH_ERROR;
+    }
 
-	if (ts_data->log_level >= 3)
-		fts_show_touch_buffer(touch_buf, ts_data->ta_size);
+    if (ts_data->log_level >= 3)
+        fts_show_touch_buffer(touch_buf, ts_data->ta_size);
 
-	if (ret)
-		return TOUCH_IGNORE;
+    if (ret)
+        return TOUCH_IGNORE;
 
-	if ((touch_buf[1] == 0xFF) && (touch_buf[2] == 0xFF) &&
-	    (touch_buf[3] == 0xFF) && (touch_buf[4] == 0xFF)) {
-		FTS_INFO("touch buff is 0xff, FW initialized");
-		return TOUCH_FW_INIT;
-	}
+    if ((touch_buf[1] == 0xFF) && (touch_buf[2] == 0xFF)
+        && (touch_buf[3] == 0xFF) && (touch_buf[4] == 0xFF)) {
+        FTS_INFO("touch buff is 0xff, need recovery state");
+        return TOUCH_FW_INIT;
+    }
 
-#if FTS_PSENSOR_EN
-	if (ts_data->proximity_mode) {
-		if (fts_proximity_readdata(ts_data) ==
-		    FTS_RETVAL_IGNORE_TOUCHES)
-			return TOUCH_IGNORE;
-	}
-#endif
-
-	if (ts_data->suspended && ts_data->gesture_support) {
-		if (fts_gesture_readdata(ts_data, touch_buf) ==
-		    FTS_RETVAL_IGNORE_TOUCHES)
-			return TOUCH_IGNORE;
-	}
-
-	if (ts_data->suspended) {
-		FTS_INFO("In suspend state, not report touch points");
-		return TOUCH_IGNORE;
-	}
-
-	return ((touch_buf[FTS_TOUCH_E_NUM] >> 4) & 0x0F);
+    return ((touch_buf[FTS_TOUCH_E_NUM] >> 4) & 0x0F);
 }
 
 static int fts_irq_read_report(struct fts_ts_data *ts_data)
@@ -1541,108 +1471,64 @@ err_pinctrl_get:
 static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
 {
 	int ret = 0;
-
-	if (IS_ERR_OR_NULL(ts_data->vci)) {
-		FTS_ERROR("vci is invalid");
-		return -EINVAL;
-	}
-
-	if (IS_ERR_OR_NULL(ts_data->avdd)) {
-		FTS_ERROR("avdd is invalid");
-		return -EINVAL;
-	}
-
 	FTS_FUNC_ENTER();
+	fts_write_reg(0xB6, 0x01);
+	msleep(20);
 	if (enable) {
 		if (ts_data->power_disabled) {
-			fts_set_reset(ts_data, 0);
-			fts_msleep(2);
-			FTS_INFO("set power to on");
-			ret = regulator_enable(ts_data->vci);
-			if (ret) {
-				FTS_ERROR("enable vci regulator failed,ret=%d",
-					  ret);
-			}
-
-			ret = regulator_enable(ts_data->avdd);
-			if (ret) {
-				FTS_ERROR("enable avdd regulator failed,ret=%d",
-					  ret);
-			}
-
-			if (!IS_ERR_OR_NULL(ts_data->vddio)) {
-				ret = regulator_enable(ts_data->vddio);
+			FTS_DEBUG("regulator enable !");
+			gpio_direction_output(ts_data->pdata->reset_gpio, 0);
+			usleep_range(1000, 1100);
+			if (!IS_ERR_OR_NULL(ts_data->avdd)) {
+				ret = regulator_enable(ts_data->avdd);
 				if (ret) {
-					FTS_ERROR(
-						"enable vddio regulator failed,ret=%d",
-						ret);
+					FTS_ERROR("enable avdd regulator failed,ret=%d", ret);
 				}
 			}
-
+			if (ts_data->pdata->avdd_gpio > 0) {
+				gpio_direction_output(ts_data->pdata->avdd_gpio, 1);
+				//FTS_INFO("enable avdd gpio");
+			}
 			if (!IS_ERR_OR_NULL(ts_data->iovdd)) {
 				ret = regulator_enable(ts_data->iovdd);
 				if (ret) {
-					FTS_ERROR(
-						"enable iovdd regulator failed,ret=%d",
-						ret);
+					FTS_ERROR("enable iovdd regulator failed,ret=%d", ret);
+				} else {
+					FTS_INFO("successs to enable iovdd\n");
 				}
-			}
-			if (!IS_ERR_OR_NULL(ts_data->vdd)) {
-				ret = regulator_enable(ts_data->vdd);
-				if (ret) {
-					FTS_ERROR(
-						"enable vdd regulator failed,ret=%d",
-						ret);
-				}
-			}
-			fts_msleep(2);
-			fts_set_reset(ts_data, 1);
+			} else
+				FTS_ERROR("failed to get iovdd regulator\n");
+
 			ts_data->power_disabled = false;
 		}
 	} else {
 		if (!ts_data->power_disabled) {
-			fts_set_reset(ts_data, 0);
-			fts_msleep(2);
-			FTS_INFO("set power to off");
-			if (!IS_ERR_OR_NULL(ts_data->vci)) {
-				ret = regulator_disable(ts_data->vci);
+			FTS_DEBUG("regulator disable !");
+			gpio_direction_output(ts_data->pdata->reset_gpio, 0);
+			usleep_range(1000, 1100);
+			if (!IS_ERR_OR_NULL(ts_data->iovdd)) {
+				ret = regulator_disable(ts_data->iovdd);
 				if (ret) {
-					FTS_ERROR(
-						"disable vci regulator failed,ret=%d",
-						ret);
-				}
+					FTS_ERROR("disable iovdd regulator failed,ret=%d", ret);
+				}/* else {
+					FTS_INFO("%s: successs to disable iovdd\n", __func__);
+				}*/
 			}
 			if (!IS_ERR_OR_NULL(ts_data->avdd)) {
 				ret = regulator_disable(ts_data->avdd);
 				if (ret) {
-					FTS_ERROR(
-						"disable avdd regulator failed,ret=%d",
-						ret);
+					FTS_ERROR("disable avdd regulator failed,ret=%d", ret);
+				} else {
+					FTS_INFO("successs to disable avdd\n");
 				}
 			}
-			usleep_range(200, 200);
-			ret = regulator_disable(ts_data->vddio);
-			if (ret) {
-				FTS_ERROR(
-					"disable vddio regulator failed,ret=%d",
-					ret);
-			}
-			ret = regulator_disable(ts_data->iovdd);
-			if (ret) {
-				FTS_ERROR(
-					"disable iovdd regulator failed,ret=%d",
-					ret);
-			}
-			ret = regulator_disable(ts_data->vdd);
-			if (ret) {
-				FTS_ERROR(
-					"disable vdd regulator failed,ret=%d",
-					ret);
+			if (ts_data->pdata->avdd_gpio > 0) {
+				gpio_direction_output(ts_data->pdata->avdd_gpio, 0);
+				FTS_INFO("disable avdd gpio");
 			}
 			ts_data->power_disabled = true;
 		}
 	}
-
 	FTS_FUNC_EXIT();
 	return ret;
 }
@@ -1659,133 +1545,89 @@ static int fts_power_source_ctrl(struct fts_ts_data *ts_data, int enable)
 *****************************************************************************/
 static int fts_power_source_init(struct fts_ts_data *ts_data)
 {
-	int ret = 0;
+    int ret = 0;
 
-	FTS_FUNC_ENTER();
-	ts_data->vci = regulator_get(ts_data->dev, "vci");
-	ts_data->avdd = regulator_get(ts_data->dev, "avdd");
+    FTS_FUNC_ENTER();
+    if (strlen(ts_data->pdata->avdd_name)) {
+        ts_data->avdd = regulator_get(ts_data->dev, ts_data->pdata->avdd_name);
+        if (IS_ERR_OR_NULL(ts_data->avdd)) {
+            ret = PTR_ERR(ts_data->avdd);
+            FTS_ERROR("get avdd regulator failed,ret=%d", ret);
+            return ret;
+        }
+        FTS_INFO("get avdd regulator success");
+        if (regulator_count_voltages(ts_data->avdd) > 0) {
+            ret = regulator_set_voltage(ts_data->avdd, FTS_VTG_MIN_UV,
+                                        FTS_VTG_MAX_UV);
+            if (ret) {
+                FTS_ERROR("avdd regulator set_vtg failed ret=%d", ret);
+                regulator_put(ts_data->avdd);
+                return ret;
+            }
+        }
+    } else {
+        ts_data->avdd = NULL;
+        FTS_INFO("avdd name is NULL");
+    }
 
-	if (IS_ERR_OR_NULL(ts_data->vci)) {
-		ret = PTR_ERR(ts_data->vci);
-		FTS_ERROR("get vci regulator failed,ret=%d", ret);
-		return ret;
-	}
+    if (strlen(ts_data->pdata->iovdd_name)) {
+        ts_data->iovdd = regulator_get(ts_data->dev, ts_data->pdata->iovdd_name);
+        if (IS_ERR_OR_NULL(ts_data->iovdd)) {
+            ret = PTR_ERR(ts_data->iovdd);
+            FTS_ERROR("get iovdd regulator failed,ret=%d", ret);
+            return ret;
+        } else {
+            FTS_INFO("get iovdd regulator success");
+            if (regulator_count_voltages(ts_data->iovdd) > 0) {
+                ret = regulator_set_voltage(ts_data->iovdd,
+                                            FTS_I2C_VTG_MIN_UV,
+                                            FTS_I2C_VTG_MAX_UV);
+                if (ret) {
+                    FTS_ERROR("iovdd regulator set_vtg failed,ret=%d", ret);
+                    regulator_put(ts_data->iovdd);
+                    return ret;
+                }
+            }
+        }
+    } else {
+        ts_data->iovdd = NULL;
+        FTS_INFO("iovdd name is NULL");
+    }
 
-	if (IS_ERR_OR_NULL(ts_data->avdd)) {
-		ret = PTR_ERR(ts_data->avdd);
-		FTS_ERROR("get avdd regulator failed,ret=%d", ret);
-		return ret;
-	}
+#if FTS_PINCTRL_EN
+    fts_pinctrl_init(ts_data);
+    fts_pinctrl_select_normal(ts_data);
+    fts_pinctrl_select_spimode(ts_data);
+#endif
 
-	if (regulator_count_voltages(ts_data->vci) > 0) {
-		ret = regulator_set_voltage(ts_data->vci, FTS_VTG_MIN_UV,
-					    FTS_VTG_MAX_UV);
-		if (ret) {
-			FTS_ERROR("vci regulator set_vtg failed ret=%d", ret);
-			regulator_put(ts_data->vci);
-			return ret;
-		}
-	}
+    ts_data->power_disabled = true;
+    ret = fts_power_source_ctrl(ts_data, ENABLE);
+    if (ret) {
+        FTS_ERROR("fail to enable power(regulator)");
+    }
 
-	if (regulator_count_voltages(ts_data->avdd) > 0) {
-		ret = regulator_set_voltage(ts_data->avdd, FTS_VTG_MIN_UV,
-					    FTS_VTG_MAX_UV);
-		if (ret) {
-			FTS_ERROR("avdd regulator set_vtg failed ret=%d", ret);
-			regulator_put(ts_data->avdd);
-			return ret;
-		}
-	}
-
-	ts_data->vddio = regulator_get(ts_data->dev, "vddio");
-	if (!IS_ERR_OR_NULL(ts_data->vddio)) {
-		if (regulator_count_voltages(ts_data->vddio) > 0) {
-			ret = regulator_set_voltage(ts_data->vddio,
-						    FTS_IOVCC_VTG_MIN_UV,
-						    FTS_IOVCC_VTG_MAX_UV);
-			if (ret) {
-				FTS_ERROR(
-					"vddio regulator set_vtg failed,ret=%d",
-					ret);
-				regulator_put(ts_data->vddio);
-			}
-		}
-	}
-
-	ts_data->iovdd = regulator_get(ts_data->dev, "iovdd");
-	if (!IS_ERR_OR_NULL(ts_data->iovdd)) {
-		if (regulator_count_voltages(ts_data->iovdd) > 0) {
-			ret = regulator_set_voltage(ts_data->iovdd,
-						    FTS_IOVCC_VTG_MIN_UV,
-						    FTS_IOVCC_VTG_MAX_UV);
-			if (ret) {
-				FTS_ERROR(
-					"iovdd regulator set_vtg failed,ret=%d",
-					ret);
-				regulator_put(ts_data->iovdd);
-			}
-		}
-	}
-
-	ts_data->vdd = regulator_get(ts_data->dev, "vdd");
-	if (!IS_ERR_OR_NULL(ts_data->vdd)) {
-		if (regulator_count_voltages(ts_data->vdd) > 0) {
-			ret = regulator_set_voltage(ts_data->vdd,
-						    FTS_IOVCC_VTG_MIN_UV,
-						    FTS_IOVCC_VTG_MAX_UV);
-			if (ret) {
-				FTS_ERROR(
-					"vdd regulator set_vtg failed,ret=%d",
-					ret);
-				regulator_put(ts_data->vdd);
-			}
-		}
-	}
-
-	ret = fts_power_source_ctrl(ts_data, ENABLE);
-	if (ret) {
-		FTS_ERROR("fail to enable power(regulator)");
-	}
-
-	FTS_FUNC_EXIT();
-	return ret;
+    FTS_FUNC_EXIT();
+    return ret;
 }
 
 static int fts_power_source_exit(struct fts_ts_data *ts_data)
 {
-	fts_power_source_ctrl(ts_data, DISABLE);
+    FTS_FUNC_ENTER();
+    fts_power_source_ctrl(ts_data, DISABLE);
 
-	if (!IS_ERR_OR_NULL(ts_data->vci)) {
-		if (regulator_count_voltages(ts_data->vci) > 0)
-			regulator_set_voltage(ts_data->vci, 0, FTS_VTG_MAX_UV);
-		regulator_put(ts_data->vci);
-	}
-	if (!IS_ERR_OR_NULL(ts_data->avdd)) {
-		if (regulator_count_voltages(ts_data->avdd) > 0)
-			regulator_set_voltage(ts_data->avdd, 0, FTS_VTG_MAX_UV);
-		regulator_put(ts_data->avdd);
-	}
+    if (!IS_ERR_OR_NULL(ts_data->avdd)) {
+        if (regulator_count_voltages(ts_data->avdd) > 0)
+            regulator_set_voltage(ts_data->avdd, 0, FTS_VTG_MAX_UV);
+        regulator_put(ts_data->avdd);
+    }
 
-	if (!IS_ERR_OR_NULL(ts_data->vddio)) {
-		if (regulator_count_voltages(ts_data->vddio) > 0)
-			regulator_set_voltage(ts_data->vddio, 0,
-					      FTS_IOVCC_VTG_MAX_UV);
-		regulator_put(ts_data->vddio);
-	}
-	if (!IS_ERR_OR_NULL(ts_data->iovdd)) {
-		if (regulator_count_voltages(ts_data->iovdd) > 0)
-			regulator_set_voltage(ts_data->iovdd, 0,
-					      FTS_IOVCC_VTG_MAX_UV);
-		regulator_put(ts_data->iovdd);
-	}
-	if (!IS_ERR_OR_NULL(ts_data->vdd)) {
-		if (regulator_count_voltages(ts_data->vdd) > 0)
-			regulator_set_voltage(ts_data->vdd, 0,
-					      FTS_IOVCC_VTG_MAX_UV);
-		regulator_put(ts_data->vdd);
-	}
-
-	return 0;
+    if (!IS_ERR_OR_NULL(ts_data->iovdd)) {
+        if (regulator_count_voltages(ts_data->iovdd) > 0)
+            regulator_set_voltage(ts_data->iovdd, 0, FTS_I2C_VTG_MAX_UV);
+        regulator_put(ts_data->iovdd);
+    }
+    FTS_FUNC_EXIT();
+    return 0;
 }
 #endif /* FTS_POWER_SOURCE_CUST_EN */
 
@@ -2002,6 +1844,7 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 	int ret = 0;
 	struct device_node *np = dev->of_node;
 	u32 temp_val = 0;
+        const char *name_tmp;
 
 	FTS_FUNC_ENTER();
 	if (!np || !pdata) {
@@ -2049,16 +1892,47 @@ static int fts_parse_dt(struct device *dev, struct fts_ts_platform_data *pdata)
 			 pdata->key_y_coords[2]);
 	}
 
-	/* reset, irq gpio info */
-	pdata->reset_gpio = of_get_named_gpio_flags(
-		np, "focaltech,reset-gpio", 0, &pdata->reset_gpio_flags);
-	if (pdata->reset_gpio < 0)
-		FTS_ERROR("Unable to get reset_gpio");
+        /* reset, irq gpio info */
+        pdata->reset_gpio = of_get_named_gpio_flags(np, "focaltech,reset-gpio",
+                            0, &pdata->reset_gpio_flags);
+        if (pdata->reset_gpio < 0)
+            FTS_ERROR("Unable to get reset_gpio");
 
-	pdata->irq_gpio = of_get_named_gpio_flags(np, "focaltech,irq-gpio", 0,
-						  &pdata->irq_gpio_flags);
-	if (pdata->irq_gpio < 0)
-		FTS_ERROR("Unable to get irq_gpio");
+        pdata->irq_gpio = of_get_named_gpio_flags(np, "focaltech,irq-gpio",
+                          0, &pdata->irq_gpio_flags);
+        if (pdata->irq_gpio < 0)
+            FTS_ERROR("Unable to get irq_gpio");
+
+	ret = of_get_named_gpio(np, "goodix,avdd-gpio", 0);
+	if (ret < 0) {
+		FTS_ERROR("can't find avdd-gpio, use other power supply");
+		pdata->avdd_gpio = 0;
+	} else {
+		FTS_INFO("get avdd-gpio[%d] from dt", ret);
+		pdata->avdd_gpio = ret;
+	}
+
+	memset(pdata->avdd_name, 0, sizeof(pdata->avdd_name));
+	ret = of_property_read_string(np, "focaltech,avdd-name", &name_tmp);
+	if (!ret) {
+		FTS_INFO("avdd name from dt: %s", name_tmp);
+		if (strlen(name_tmp) < sizeof(pdata->avdd_name))
+			strncpy(pdata->avdd_name, name_tmp, sizeof(pdata->avdd_name));
+		else
+			FTS_INFO("invalied avdd name length: %ld > %ld", strlen(name_tmp),
+				sizeof(pdata->avdd_name));
+	}
+
+	memset(pdata->iovdd_name, 0, sizeof(pdata->iovdd_name));
+	ret = of_property_read_string(np, "focaltech,iovdd-name", &name_tmp);
+	if (!ret) {
+		FTS_INFO("iovdd name from dt: %s", name_tmp);
+		if (strlen(name_tmp) < sizeof(pdata->iovdd_name))
+			strncpy(pdata->iovdd_name, name_tmp, sizeof(pdata->iovdd_name));
+		else
+			FTS_INFO("invalied iovdd name length: %ld > %ld", strlen(name_tmp),
+				sizeof(pdata->iovdd_name));
+	}
 
     ret = of_property_read_u32(np, "focaltech,super-resolution-factors", &temp_val);
     if (ret < 0) {
@@ -2205,11 +2079,13 @@ static int fts_ts_resume(struct device *dev)
 		ts_data->pocket_mode = DISABLE;
 	}
 
-	if (ts_data->high_report_rate) {
-		fts_switch_report_rate(ts_data, ts_data->high_report_rate);
-	}
+	update_fod_press_status(0);
 
-	notify_oneshot_sensor(ONESHOT_SENSOR_FOD_PRESS, 0);
+        /* If user enabled 480Hz, re-apply after screen-on */
+        if (ts_data->report_rate_status != 240) {
+                fts_switch_report_rate(ts_data, true);
+                fts_switch_edge_filter(ts_data, true);
+        }
 
 	FTS_FUNC_EXIT();
 	return 0;
@@ -2408,60 +2284,6 @@ static int fts_notifier_callback_init(struct fts_ts_data *ts_data)
 	return ret;
 }
 
-int fts_check_ts_id_gpio(struct device *dev)
-{
-	int ret;
-	int gpio1, gpio2;
-	int gpio_det1, gpio_det2;
-
-	gpio1 = of_get_named_gpio(dev->of_node, "focaltech,ts-id1-gpio", 0);
-	if (gpio1 < 0)
-		return 0;
-
-	ret = devm_gpio_request_one(dev, gpio1, GPIOF_IN, "LCD_ID_DET1");
-	if (ret < 0)
-		return -EINVAL;
-
-	gpio_det1 = gpio_get_value(gpio1);
-
-	gpio2 = of_get_named_gpio(dev->of_node, "focaltech,ts-id2-gpio", 0);
-	if (gpio2 < 0)
-		return 0;
-
-	ret = devm_gpio_request_one(dev, gpio2, GPIOF_IN, "LCD_ID_DET2");
-	if (ret < 0)
-		return -EINVAL;
-
-	gpio_det2 = gpio_get_value(gpio2);
-
-	FTS_INFO("gpio_det1 = %d, gpio_det2 = %d\n", gpio_det1, gpio_det2);
-
-	if (!gpio_det1 && gpio_det2) {
-		FTS_INFO("focaltech touchscreen detected");
-		return 0;
-	} else {
-		FTS_ERROR("focaltech touchscreen not detected");
-		return -ENODEV;
-	}
-}
-
-#define FTS_HIGH_RATE_CMD		0xC3
-int fts_switch_report_rate(struct fts_ts_data *ts_data, bool enable)
-{
-	int ret = 0;
-
-	ret = fts_write_reg(FTS_HIGH_RATE_CMD, (enable == true) ? 1 : 0);
-	if (ret < 0) {
-		FTS_ERROR("failed send report rate cmd, on = %d", enable);
-		return -EINVAL;
-	} else {
-		ts_data->high_report_rate = enable;
-		FTS_INFO("reprot rate switch: %s", (enable == true) ? "480HZ" : "240HZ");
-	}
-
-	return 0;
-}
-
 static void fts_update_gesture_state(struct fts_ts_data *ts_data, int bit, bool enable)
 {
 	mutex_lock(&ts_data->input_dev->mutex);
@@ -2473,61 +2295,180 @@ static void fts_update_gesture_state(struct fts_ts_data *ts_data, int bit, bool 
 	mutex_unlock(&ts_data->input_dev->mutex);
 }
 
-static int fts_get_mode_value(void *private, enum touch_mode mode)
+/* support 480HZ report rate by interpolation */
+#define FTS_HIGH_RATE_CMD        0xC3
+int fts_switch_report_rate(struct fts_ts_data *cd, bool on)
 {
-	struct fts_ts_data *fts_data = private;
+        int ret = 0;
 
-    switch (mode) {
-    case TOUCH_MODE_DOUBLETAP_GESTURE:
-        return (fts_data->gesture_status & GESTURE_DOUBLETAP_EN) ? 1 : 0;
-    case TOUCH_MODE_SINGLETAP_GESTURE:
-        return (fts_data->gesture_status & GESTURE_SINGLETAP_EN) ? 1 : 0;
-    case TOUCH_MODE_FOD_PRESS_GESTURE:
-        return (fts_data->gesture_status & GESTURE_FOD_EN) ? 1 : 0;
-    default:
-        return -EINVAL;
-    }
+        ret = fts_write_reg(FTS_HIGH_RATE_CMD, (on == true) ? 1 : 0);
+        if (ret < 0) {
+                FTS_ERROR("failed send report rate cmd, on = %d", on);
+                return -EINVAL;
+        } else {
+                FTS_INFO("reprot rate switch: %s", (on == true) ? "480HZ" : "240HZ");
+        }
+        return 0;
 }
 
-static int fts_set_cur_value(void *private, enum touch_mode mode, int value)
+/**
+ * fts_switch_edge_filter - Switch edge filter/game mode
+ * @ts_data: touch data structure
+ * @enable: true for game mode, false for normal mode
+ *
+ */
+int fts_switch_edge_filter(struct fts_ts_data *ts_data, bool enable)
 {
-	struct fts_ts_data *fts_data = private;
+    int ret = 0;
+    u8 value = 0;
 
-	FTS_INFO("set mode: %d, value: %d", mode, value);
-	switch (mode) {
-	case TOUCH_MODE_DOUBLETAP_GESTURE:
-		fts_update_gesture_state(fts_data, GESTURE_DOUBLETAP, value != 0 ? true : false);
+    if (!ts_data) {
+        FTS_ERROR("ts_data is null");
+        return -EINVAL;
+    }
+
+    if (enable) {
+        // Game mode - use enhanced sensitivity
+        value = 3;
+        ts_data->edge_filter_mode = EDGE_FILTER_GAME;
+    } else {
+        // Normal mode
+        value = 0;
+        ts_data->edge_filter_mode = EDGE_FILTER_NORMAL;
+    }
+
+    ret = fts_write_reg(FTS_REG_EDGE_FILTER_EN, value);
+    if (ret < 0) {
+        FTS_ERROR("Failed to switch edge filter mode to %d, ret=%d", value, ret);
+        return ret;
+    }
+
+    ts_data->edge_filter_value = value;
+    FTS_INFO("Edge filter mode switch: %s (value=0x%02x)",
+             enable ? "GAME" : "NORMAL", value);
+
+    return 0;
+}
+
+static void fts_set_cur_value(int mode, int *value)
+{
+	if (!fts_data || mode < 0) {
+		FTS_ERROR(
+			"Error, fts_data is NULL or the parameter is incorrect");
+		return;
+	}
+	FTS_INFO("touch mode:%d, value:%d", mode, *value);
+
+	if (mode == DATA_MODE_14 && *value >= 0) {
+		fts_update_gesture_state(fts_data, GESTURE_DOUBLETAP, *value != 0 ? true : false);
+		return;
+	}
+	if (mode == DATA_MODE_21 && *value >= 0) {
+		fts_update_gesture_state(fts_data, GESTURE_SINGLETAP, *value != 0 ? true : false);
+		return;
+	}
+	if (mode == DATA_MODE_20 && *value >= 0) {
+		fts_update_gesture_state(fts_data, GESTURE_FOD, *value != 0 ? true : false);
+		return;
+	}
+	if (mode == DATA_MODE_22 && *value >= 0) {
+		update_fod_press_status(*value != 0);
+		return;
+	}
+	if (mode == DATA_MODE_9 && *value >= 0) {
+		fts_switch_report_rate(fts_data, *value != 0 ? true : false);
+		fts_switch_edge_filter(fts_data, *value != 0 ? true : false);
+		return;
+	}
+}
+
+static void fts_get_mode_value(common_data_t *common_data)
+{
+	if (!fts_data || !common_data)
+		return;
+
+	FTS_INFO("get mode:%d", common_data->mode);
+
+	switch (common_data->mode) {
+	case DATA_MODE_14:
+		common_data->data_buf[0] = (fts_data->gesture_status & GESTURE_DOUBLETAP) != 0;
 		break;
-	case TOUCH_MODE_SINGLETAP_GESTURE:
-		fts_update_gesture_state(fts_data, GESTURE_SINGLETAP, value != 0 ? true : false);
+	case DATA_MODE_21:
+		common_data->data_buf[0] = (fts_data->gesture_status & GESTURE_SINGLETAP) != 0;
 		break;
-	case TOUCH_MODE_FOD_PRESS_GESTURE:
-		fts_update_gesture_state(fts_data, GESTURE_FOD, value != 0 ? true : false);
-		break;
-	case TOUCH_MODE_REPORT_RATE:
-		fts_switch_report_rate(fts_data, value != 0 ? true : false);
+	case DATA_MODE_20:
+		common_data->data_buf[0] = (fts_data->gesture_status & GESTURE_FOD) != 0;
 		break;
 	default:
-		FTS_ERROR("handler got mode %d with value %d, not implemented",
-			 mode, value);
-		return -EINVAL;
+		common_data->data_buf[0] = 0;
+		break;
 	}
+}
+
+static void fts_init_touchmode_data(struct fts_ts_data *ts_data)
+{
+	FTS_INFO("touchfeature value init done");
+}
+
+static int fts_ic_get_lockdown_info(u8 lockdown_info[8])
+{
 	return 0;
+}
+
+static int fts_ic_get_fw_version(char fw_version[64])
+{
+	if (!fts_data)
+		return -1;
+
+	scnprintf(fw_version, 64, "%s", FTS_DRIVER_VERSION);
+	return 0;
+}
+
+static void fts_ic_switch_mode(u8 gesture_type)
+{
+	if (!fts_data)
+		return;
+
+	FTS_INFO("switch mode, gesture_type: 0x%02x", gesture_type);
+
+	fts_data->gesture_status = gesture_type;
+	fts_update_gesture_state(fts_data, GESTURE_DOUBLETAP, (gesture_type & GESTURE_DOUBLETAP) != 0);
+	fts_update_gesture_state(fts_data, GESTURE_SINGLETAP, (gesture_type & GESTURE_SINGLETAP) != 0);
+	fts_update_gesture_state(fts_data, GESTURE_FOD, (gesture_type & GESTURE_FOD) != 0);
 }
 
 static void fts_init_xiaomi_touchfeature(struct fts_ts_data *ts_data)
 {
 	mutex_init(&ts_data->cmd_update_mutex);
+	memset(&fts_hardware_param, 0x00, sizeof(hardware_param_t));
+	memset(&fts_hardware_operation, 0x00, sizeof(hardware_operation_t));
 
-	ts_data->xiaomi_touch.set_mode_value = fts_set_cur_value;
-	ts_data->xiaomi_touch.get_mode_value = fts_get_mode_value;
-	ts_data->xiaomi_touch.private = ts_data;
-	FTS_INFO("touchfeature value init done");
+	fts_hardware_param.x_resolution = ts_data->pdata->x_max;
+	fts_hardware_param.y_resolution = ts_data->pdata->y_max;
+	fts_hardware_param.rx_num = 0;
+	fts_hardware_param.tx_num = 0;
+	fts_hardware_param.super_resolution_factor = 1;
+	fts_hardware_param.frame_data_page_size = 1;
+	fts_hardware_param.frame_data_buf_size = 1;
+	fts_hardware_param.raw_data_page_size = 1;
+	fts_hardware_param.raw_data_buf_size = 1;
+	scnprintf(fts_hardware_param.config_file_name, 64, "%s", "fts_config");
+	scnprintf(fts_hardware_param.driver_version, 64, "%s", FTS_DRIVER_VERSION);
+	scnprintf(fts_hardware_param.fw_version, 64, "%s", FTS_DRIVER_VERSION);
+
+	fts_hardware_operation.set_mode_value = fts_set_cur_value;
+	fts_hardware_operation.get_mode_value = fts_get_mode_value;
+	fts_hardware_operation.ic_switch_mode = fts_ic_switch_mode;
+	fts_hardware_operation.ic_get_lockdown_info = fts_ic_get_lockdown_info;
+	fts_hardware_operation.ic_get_fw_version = fts_ic_get_fw_version;
+
+	fts_init_touchmode_data(ts_data);
 
 	ts_data->gesture_support = 1;
 	ts_data->pdata->fod_status = -1;
 
-	register_xiaomi_touch_client(TOUCH_ID_PRIMARY, &ts_data->xiaomi_touch);
+	register_touch_panel(ts_data->dev, 0, &fts_hardware_param,
+		&fts_hardware_operation);
 }
 
 static int fts_notifier_callback_exit(struct fts_ts_data *ts_data)
@@ -2550,8 +2491,6 @@ static int fts_notifier_callback_exit(struct fts_ts_data *ts_data)
 	FTS_FUNC_EXIT();
 	return 0;
 }
-
-long int FTS_CHIP_TYPE = _FT3683G;
 
 int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 {
@@ -2614,6 +2553,17 @@ int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 		FTS_ERROR("fail to init power");
 		goto err_power_init;
 	}
+
+#if (!FTS_CHIP_IDC)
+        msleep(1);
+        ret = gpio_direction_output(fts_data->pdata->reset_gpio, 1);
+        if (ret) {
+            FTS_ERROR("set gpio reset to high failed");
+        } else {
+            FTS_INFO("set gpio reset to high success");
+        }
+        msleep(100);
+#endif
 
 	ret = fts_get_ic_information(ts_data);
 	if (ret) {
@@ -2713,6 +2663,10 @@ int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 
 	fts_init_xiaomi_touchfeature(ts_data);
 
+        ts_data->report_rate_status = 240;
+        ts_data->edge_filter_mode = EDGE_FILTER_NORMAL;
+        ts_data->edge_filter_value = 0;
+
 	FTS_FUNC_EXIT();
 	return 0;
 
@@ -2750,6 +2704,8 @@ err_power_init:
 		gpio_free(ts_data->pdata->reset_gpio);
 	if (gpio_is_valid(ts_data->pdata->irq_gpio))
 		gpio_free(ts_data->pdata->irq_gpio);
+        if (gpio_is_valid(ts_data->pdata->avdd_gpio))
+                gpio_free(ts_data->pdata->avdd_gpio);
 err_gpio_config:
 	kfree_safe(ts_data->touch_buf);
 err_bus_init:
@@ -2774,6 +2730,7 @@ int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 {
 	FTS_FUNC_ENTER();
 	cancel_work_sync(&ts_data->resume_work);
+	unregister_touch_panel(0);
 	fts_notifier_callback_exit(ts_data);
 	free_irq(ts_data->irq, ts_data);
 	fts_fwupg_exit(ts_data);
@@ -2820,6 +2777,16 @@ int fts_ts_remove_entry(struct fts_ts_data *ts_data)
 #else
 	wakeup_source_unregister(ts_data->p_ws);
 #endif
+
+        if (gpio_is_valid(ts_data->pdata->reset_gpio))
+            gpio_free(ts_data->pdata->reset_gpio);
+
+        if (gpio_is_valid(ts_data->pdata->irq_gpio))
+            gpio_free(ts_data->pdata->irq_gpio);
+
+        if (gpio_is_valid(ts_data->pdata->avdd_gpio))
+            gpio_free(ts_data->pdata->avdd_gpio);
+
 	kfree_safe(ts_data->touch_buf);
 	kfree_safe(ts_data->bus_tx_buf);
 	kfree_safe(ts_data->bus_rx_buf);
