@@ -887,7 +887,7 @@ static ssize_t goodix_ts_double_tap_store(struct device *dev,
 {
 	if (!buf || count <= 0)
 		return -EINVAL;
-	set_touch_mode(DATA_MODE_11, buf[0] != '0');
+	set_touch_mode(DATA_MODE_14, buf[0] != '0');
 	return count;
 }
 
