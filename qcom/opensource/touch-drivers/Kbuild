@@ -217,7 +217,11 @@ endif
 ifeq ($(CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE), y)
 
 	xiaomi_touch-y := \
-		 ./xiaomi/xiaomi_touch.o \
+		 ./xiaomi/xiaomi_touch_core.o \
+		 ./xiaomi/xiaomi_touch_knock_data.o \
+		 ./xiaomi/xiaomi_touch_proc.o xiaomi_touch_operations.o \
+		 ./xiaomi/xiaomi_touch_sys.o xiaomi_touch_mode.o \
+		 ./xiaomi/xiaomi_touch_evdev.o xiaomi_touch_device.o
 
 	obj-$(CONFIG_MSM_TOUCH) += xiaomi_touch.o
 endif
