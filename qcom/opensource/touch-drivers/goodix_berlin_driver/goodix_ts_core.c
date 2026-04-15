@@ -3905,7 +3905,8 @@ upgrade:
 #ifdef TOUCH_THP_SUPPORT
 	ts_info("enable thp");
 	hardware_operation.enable_touch_raw = goodix_htc_enable;
-	goodix_core_data->enable_touch_raw = 1;
+	goodix_core_data->enable_touch_raw = 0;
+	goodix_htc_enable(0);
 #ifdef TOUCH_DUMP_TIC_SUPPORT
 	goodix_core_data->dump_type = DUMP_OFF;
 #endif //TOUCH_DUMP_TIC_SUPPORT

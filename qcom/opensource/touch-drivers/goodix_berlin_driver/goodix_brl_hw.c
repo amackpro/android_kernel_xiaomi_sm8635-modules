@@ -1354,9 +1354,11 @@ static int brl_event_handler(struct goodix_ts_core *cd,
 	struct goodix_ic_info_misc *misc = &cd->ic_info.misc;
 	int pre_read_len;
 	u8 pre_buf[32];
+	u8 frame_head[16];
 	u8 event_status;
 	u8 large_touch_status;
 	int ret;
+	int frame_read_len;
 
 #ifdef TOUCH_THP_SUPPORT
 	static u64 frame_cnt = 0;
