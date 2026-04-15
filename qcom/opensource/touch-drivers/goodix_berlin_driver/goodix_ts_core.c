@@ -956,17 +956,9 @@ static ssize_t goodix_report_rate_store(struct device *dev,
 		return -EINVAL;
 
 	if (buf[0] == '0') {
-		goodix_core_data->report_rate = 60;
-		/* core_data->hw_ops->switch_report_rate(core_data, true); */
-	} else if (buf[0] == '1'){
-		goodix_core_data->report_rate = 68;
-		/* core_data->hw_ops->switch_report_rate(core_data, false); */
-	} else if (buf[0] == '2'){
-		goodix_core_data->report_rate = 120;
-	} else if (buf[0] == '3'){
-		goodix_core_data->report_rate = 135;
-	}  else if (buf[0] == '4'){
 		goodix_core_data->report_rate = 240;
+	}  else {
+		goodix_core_data->report_rate = 480;
 	}
 
 	return count;
@@ -4059,7 +4051,7 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	init_completion(&core_data->pm_resume_completion);
 	device_init_wakeup(&pdev->dev, 1);
 	core_data->init_stage = CORE_INIT_STAGE1;
-	core_data->report_rate = 120;
+	core_data->report_rate = 240;
 	goodix_modules.core_data = core_data;
 	core_module_prob_sate = CORE_MODULE_PROB_SUCCESS;
 
