@@ -165,9 +165,6 @@ int brl_resume(struct goodix_ts_core *cd)
 #define GOODIX_DOUBLE_CLICK_BIT    0x80
 #define GOODIX_FINGER_PRINT_BIT    0x20
 #define GOODIX_SINGER_CLICK_BIT    0x10
-#ifdef  TOUCH_STYLUS_SUPPORT
-#define GOODIX_STYLUS_SINGER_CLICK_BIT 0x80
-#endif
 int brl_gesture(struct goodix_ts_core *cd, int gesture_type)
 {
 	struct goodix_ts_cmd cmd;
@@ -180,17 +177,12 @@ int brl_gesture(struct goodix_ts_core *cd, int gesture_type)
 	if (gesture_type & DOUBLE_TAP_EN)
 		cmd.data[0] &= ~GOODIX_DOUBLE_CLICK_BIT;
 
-	if ((gesture_type & SINGLE_TAP_EN) || (gesture_type & PAD_SINGLE_TAP_EN))
+	if (gesture_type & SINGLE_TAP_EN)
 		cmd.data[1] &= ~GOODIX_SINGER_CLICK_BIT;
 
 #ifdef TOUCH_FOD_SUPPORT
 	if (gesture_type & FOD_EN)
 		cmd.data[1] &= ~GOODIX_FINGER_PRINT_BIT;
-#endif
-
-#ifdef TOUCH_STYLUS_SUPPORT
-	if (gesture_type & STYLUS_SINGLE_TAP_EN)
-		cmd.data[1] &= ~GOODIX_STYLUS_SINGER_CLICK_BIT;
 #endif
 
 	ts_debug("BRL cmd 0 is 0x%x", cmd.data[0]);
@@ -1286,42 +1278,9 @@ static void goodix_parse_finger(struct goodix_touch_data *touch_data,
 	touch_data->touch_num = touch_num;
 }
 
-static unsigned int goodix_pen_btn_code[] = {BTN_STYLUS, BTN_STYLUS2};
-static void goodix_parse_pen(struct goodix_pen_data *pen_data,
-	u8 *buf, int touch_num)
-{
-	unsigned int id = 0;
-	u8 cur_key_map = 0;
-	u8 *coor_data;
-	int16_t x_angle, y_angle;
-	int i;
 
-	pen_data->coords.tool_type = BTN_TOOL_PEN;
 
-	if (touch_num) {
-		pen_data->coords.status = TS_TOUCH;
-		coor_data = &buf[IRQ_EVENT_HEAD_LEN];
 
-		id = (coor_data[0] >> 4) & 0x0F;
-		pen_data->coords.x = le16_to_cpup((__le16 *)(coor_data + 2));
-		pen_data->coords.y = le16_to_cpup((__le16 *)(coor_data + 4));
-		pen_data->coords.p = le16_to_cpup((__le16 *)(coor_data + 6));
-		x_angle = le16_to_cpup((__le16 *)(coor_data + 8));
-		y_angle = le16_to_cpup((__le16 *)(coor_data + 10));
-		pen_data->coords.tilt_x = x_angle / 100;
-		pen_data->coords.tilt_y = y_angle / 100;
-	} else {
-		pen_data->coords.status = TS_RELEASE;
-	}
-
-	cur_key_map = (buf[3] & 0x0F) >> 1;
-	for (i = 0; i < GOODIX_MAX_PEN_KEY; i++) {
-		pen_data->keys[i].code = goodix_pen_btn_code[i];
-		if (!(cur_key_map & (1 << i)))
-			continue;
-		pen_data->keys[i].status = TS_TOUCH;
-	}
-}
 
 static int goodix_touch_handler(struct goodix_ts_core *cd,
 		struct goodix_ts_event *ts_event,
@@ -1330,14 +1289,12 @@ static int goodix_touch_handler(struct goodix_ts_core *cd,
 	struct goodix_ts_hw_ops *hw_ops = cd->hw_ops;
 	struct goodix_ic_info_misc *misc = &cd->ic_info.misc;
 	struct goodix_touch_data *touch_data = &ts_event->touch_data;
-	struct goodix_pen_data *pen_data = &ts_event->pen_data;
 	static u8 buffer[IRQ_EVENT_HEAD_LEN +
 			BYTES_PER_POINT * GOODIX_MAX_TOUCH + 2 + 8];
 	u8 touch_num = 0;
 	int ret = 0;
 	u8 point_type = 0;
 	static u8 pre_finger_num;
-	static u8 pre_pen_num;
 
 	/* clean event buffer */
 	memset(ts_event, 0, sizeof(*ts_event));
@@ -1383,31 +1340,9 @@ static int goodix_touch_handler(struct goodix_ts_core *cd,
 			}
 		}
 	}
-	if (touch_num > 0 && (point_type == POINT_TYPE_STYLUS
-				|| point_type == POINT_TYPE_STYLUS_HOVER)) {
-		/* stylus info */
-		if (pre_finger_num) {
-			ts_event->event_type = EVENT_TOUCH;
-			goodix_parse_finger(touch_data, buffer, 0);
-			pre_finger_num = 0;
-		} else {
-			pre_pen_num = 1;
-			ts_event->event_type = EVENT_PEN;
-			goodix_parse_pen(pen_data, buffer, touch_num);
-		}
-	} else {
-		/* finger info */
-		if (pre_pen_num) {
-			ts_event->event_type = EVENT_PEN;
-			goodix_parse_pen(pen_data, buffer, 0);
-			pre_pen_num = 0;
-		} else {
-			ts_event->event_type = EVENT_TOUCH;
-			goodix_parse_finger(touch_data,
-					buffer, touch_num);
-			pre_finger_num = touch_num;
-		}
-	}
+	ts_event->event_type = EVENT_TOUCH;
+	goodix_parse_finger(touch_data, buffer, touch_num);
+	pre_finger_num = touch_num;
 
 	return 0;
 }
@@ -2638,29 +2573,7 @@ int brl_switch_report_rate(struct goodix_ts_core *cd, bool on)
 	return 0;
 }
 
-#ifdef TOUCH_STYLUS_SUPPORT
-#define GOODIX_STYLUS_STATUS 0xA4
-int brl_send_stylus_status(struct goodix_ts_core *cd, bool on)
-{
-	struct goodix_ts_cmd cmd;
-	/*
-	static bool last_status;
-	if (last_status == on)
-		return 0;
-	*/
-	cmd.cmd = GOODIX_STYLUS_STATUS;
-	cmd.len = 5;
-	cmd.data[0] = (on == true) ? 1 : 0;
-	if (cd->hw_ops->send_cmd(cd, &cmd)) {
-		ts_err("failed send stylus status cmd, on = %d", on);
-		return -EINVAL;
-	} else {
-		ts_info("stylus: %s", (on == true) ? "STYLUS ACTIVE" : "STYLUS SLEEP");
-	}
-	/* last_status = on; */
-	return 0;
-}
-#endif
+
 
 static struct goodix_ts_hw_ops brl_hw_ops = {
 	.power_on = brl_power_on,
@@ -2690,9 +2603,6 @@ static struct goodix_ts_hw_ops brl_hw_ops = {
 #endif
 	.get_frame_data = brl_get_frame_data,
 	.switch_report_rate = brl_switch_report_rate,
-#ifdef TOUCH_STYLUS_SUPPORT
-	.send_stylus_status = brl_send_stylus_status,
-#endif
 };
 
 struct goodix_ts_hw_ops *goodix_get_hw_ops(void)

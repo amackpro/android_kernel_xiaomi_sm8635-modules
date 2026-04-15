@@ -22,12 +22,7 @@
 #include <linux/uaccess.h>
 #include <uapi/linux/sched/types.h>
 #include <linux/backlight.h>
-#if defined(TOUCH_PLATFORM_XRING)
-#include <drm/drm_panel.h>
-#include <soc/xring/display/panel_event_notifier.h>
-#else
 #include <linux/soc/qcom/panel_event_notifier.h>
-#endif
 #include <linux/debugfs.h>
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
@@ -36,11 +31,6 @@
 #endif
 
 #include "goodix_ts_core.h"
-
-#ifdef TOUCH_STYLUS_SUPPORT
-#include "inc/mca/strategy/strategy_wireless_class.h"
-extern int pen_charge_state_notifier_register_client(struct notifier_block *nb);
-#endif
 
 #define GOODIX_DEFAULT_CFG_NAME 	"goodix_cfg_group.cfg"
 #define GOOIDX_INPUT_PHYS			"goodix_ts/input0"
@@ -59,9 +49,6 @@ extern void lpm_disable_for_dev(bool on, char event_dev);
 const char *qts_touch_type = NULL;
 struct qts_vendor_data qts_vendor_data;
 #endif // TOUCH_TRUSTED_SUPPORT
-#ifdef TOUCH_STYLUS_SUPPORT
-extern struct spi_device *for_stylus_spi;
-#endif
 extern struct device_node *gf_spi_dp;
 struct goodix_module goodix_modules;
 int core_module_prob_sate = CORE_MODULE_UNPROBED;
@@ -73,13 +60,7 @@ int goodix_ts_get_lockdown_info(struct goodix_ts_core *cd);
 int goodix_ts_power_off(struct goodix_ts_core *cd);
 int goodix_ts_power_on(struct goodix_ts_core *cd);
 int goodix_set_thermal_temp(int temp, bool force);
-#ifdef TOUCH_STYLUS_SUPPORT
-static int32_t goodix_start_hopping_freq(int value);
-#endif
 
-#ifdef TOUCH_STYLUS_SUPPORT
-static void release_pen_event(void);
-#endif
 /**
  * __do_register_ext_module - register external module
  * to register into touch core modules structure
@@ -1444,54 +1425,11 @@ static int goodix_parse_dt(struct device_node *node,
 	}
 #endif // TOUCH_TRUSTED_SUPPORT
 
-	/*get pen-enable switch and pen keys, must after "key map"*/
-	board_data->pen_enable = of_property_read_bool(node,
-					"goodix,pen-enable");
-	if (board_data->pen_enable)
-		ts_info("goodix pen enabled");
-
-	ts_debug("[DT]x:%d, y:%d, w:%d, p:%d", board_data->panel_max_x,
-		board_data->panel_max_y, board_data->panel_max_w,
-		board_data->panel_max_p);
-
 	return 0;
 }
 #endif
 
-static void goodix_ts_report_pen(struct input_dev *dev,
-		struct goodix_pen_data *pen_data)
-{
-	int i;
 
-	mutex_lock(&dev->mutex);
-
-	if (pen_data->coords.status == TS_TOUCH) {
-		input_report_key(dev, BTN_TOUCH, 1);
-		input_report_key(dev, pen_data->coords.tool_type, 1);
-		input_report_abs(dev, ABS_X, pen_data->coords.x);
-		input_report_abs(dev, ABS_Y, pen_data->coords.y);
-		input_report_abs(dev, ABS_PRESSURE, pen_data->coords.p);
-		input_report_abs(dev, ABS_TILT_X, pen_data->coords.tilt_x);
-		input_report_abs(dev, ABS_TILT_Y, pen_data->coords.tilt_y);
-		ts_debug("pen_data:x %d, y %d, p%d, tilt_x %d tilt_y %d key[%d %d]",
-				pen_data->coords.x, pen_data->coords.y,
-				pen_data->coords.p, pen_data->coords.tilt_x,
-				pen_data->coords.tilt_y, pen_data->keys[0].status == TS_TOUCH ? 1 : 0,
-				pen_data->keys[1].status == TS_TOUCH ? 1 : 0);
-	} else {
-		input_report_key(dev, BTN_TOUCH, 0);
-		input_report_key(dev, pen_data->coords.tool_type, 0);
-	}
-	/* report pen button */
-	for (i = 0; i < GOODIX_MAX_PEN_KEY; i++) {
-		if (pen_data->keys[i].status == TS_TOUCH)
-			input_report_key(dev, pen_data->keys[i].code, 1);
-		else
-			input_report_key(dev, pen_data->keys[i].code, 0);
-	}
-	input_sync(dev);
-	mutex_unlock(&dev->mutex);
-}
 
 static void goodix_ts_report_finger(struct input_dev *dev,
 		struct goodix_touch_data *touch_data)
@@ -2340,16 +2278,6 @@ static int goodix_touch_doze_analysis(int input)
 			if (error < 0)
 				ts_err("Failed to disable regulators");
 		break;
-#ifdef TOUCH_STYLUS_SUPPORT
-		case TOUCH_10:          /* for stylus*/
-			ts_info("test start hopping frequency 1");
-			goodix_start_hopping_freq(1);
-		break;
-		case TOUCH_11:          /* for stylus */
-			ts_info("test start hopping frequency 0");
-			goodix_start_hopping_freq(0);
-		break;
-#endif
 		default:
 			ts_err("don't support touch doze analysis");
 			break;
@@ -2693,8 +2621,6 @@ out:
 	/* update ic_info */
 	hw_ops->get_ic_info(core_data, &core_data->ic_info);
 	goodix_reset_charge_state(core_data, core_data->charger_status);
-	release_pen_event();
-	update_pen_status(true);
 	ts_info("Resume end");
 	mutex_unlock(&core_data->core_mutex);
 	return 0;
@@ -3354,13 +3280,7 @@ void goodix_ic_switch_mode(u8 _gesture_type)
 		gesture_type |= DOUBLE_TAP_EN;
 	if (_gesture_type & GESTURE_LONGPRESS_EVENT)
 		gesture_type |= FOD_EN;
-#ifdef  TOUCH_STYLUS_SUPPORT
-	if ((_gesture_type & GESTURE_STYLUS_SINGLETAP_EVENT) &&
-		core_data->pen_bluetooth_connect)
-		gesture_type |= STYLUS_SINGLE_TAP_EN;
-	if (_gesture_type & GESTURE_PAD_SINGLETAP_EVENT)
-		gesture_type |= PAD_SINGLE_TAP_EN;
-#endif
+
 
 	if (core_data->gesture_enabled != gesture_type) {
 		ts_info("gesture enable changed from 0x%x to 0x%x", core_data->gesture_enabled, gesture_type);
@@ -3423,10 +3343,6 @@ void goodix_game_mode_update(long mode_update_flag, int mode_value[DATA_MODE_35]
 			if (ret < 0) {
 				ts_info("failed to send game mode: %d, ret=%d", temp_value, ret);
 			}
-			if (!temp_value)
-				goodix_core_data->game_in_whitelist = 0;
-			goodix_core_data->gamemode_enable = !!temp_value;
-			update_pen_status(!!goodix_core_data->game_in_whitelist);
 		}
 		last_temp_value = temp_value;
 		mutex_unlock(&goodix_core_data->core_mutex);
@@ -3546,167 +3462,7 @@ static int goodix_update_cfg(struct goodix_ts_core *cd, bool enable) {
 
 	return ret;
 }
-#ifdef TOUCH_STYLUS_SUPPORT
-static void release_pen_event(void) {
-	if (goodix_core_data->pen_dev) {
-		input_report_abs(goodix_core_data->pen_dev, ABS_X, 0);
-		input_report_abs(goodix_core_data->pen_dev, ABS_Y, 0);
-		input_report_abs(goodix_core_data->pen_dev, ABS_PRESSURE, 0);
-		input_report_abs(goodix_core_data->pen_dev, ABS_TILT_X, 0);
-		input_report_abs(goodix_core_data->pen_dev, ABS_TILT_Y, 0);
-		input_report_abs(goodix_core_data->pen_dev, ABS_DISTANCE, 0);
-		input_report_key(goodix_core_data->pen_dev, BTN_TOUCH, 0);
-		input_report_key(goodix_core_data->pen_dev, BTN_TOOL_PEN, 0);
-		input_sync(goodix_core_data->pen_dev);
-	}
-}
 
-static int goodix_pen_charge_state_notifier_callback(struct notifier_block *self, unsigned long event, void *data) {
-#ifdef TOUCH_THP_SUPPORT
-	int value = 0x55;
-#endif
-	goodix_core_data->pen_charge_connect = !!event;
-	ts_info("pen_charge_connect is %d", goodix_core_data->pen_charge_connect);
-	release_pen_event();
-#ifdef TOUCH_THP_SUPPORT
-	if (goodix_core_data->pen_charge_connect)
-		value = 0xAA;
-	else
-		value = 0x55;
-	add_common_data_to_buf(0, SET_CUR_VALUE, DATA_MODE_140, 1, &value);
-#endif
-	schedule_work(&goodix_core_data->pen_charge_state_change_work);
-	return 0;
-}
-
-static void goodix_pen_charge_state_change_work(struct work_struct *work)
-{
-	update_pen_status(false);
-}
-/*
- *  stylus enable mode ture table:
- *  bluetooth_connect|charge_connect   |whitelist_game   |gamemode_enable  |enable
- *  0                |0/1              |0/1              |0/1              |0
- *  1                |1                |0/1              |0/1              |0
- *  1                |0                |1                |0/1              |1
- *  1                |0                |0                |1                |0
- *  1                |0                |0                |0                |1
- */
-int update_pen_status(bool enforce_send_cmd)
-{
-	int32_t ret = 0;
-	int enable = 0;
-	int enable_stylus_in_gamemode = 0;
-	static int enable_last_time = -1;
-
-	ts_info("++, enforce_send_cmd:%d, bluetooth:%d, charge:%d, gamemode:%d, game_in_whitelist:%d, pen_static_status:%d, enable_last_time:%d\n",
-		enforce_send_cmd, goodix_core_data->pen_bluetooth_connect, goodix_core_data->pen_charge_connect,
-		goodix_core_data->gamemode_enable, goodix_core_data->game_in_whitelist, goodix_core_data->pen_static_status,enable_last_time);
-
-	if (goodix_core_data->work_status == TP_SLEEP) {
-		ts_info("touch suspend, stop switch");
-		goto goodix_set_pen_enable_out;
-	}
-
-	#ifdef CONFIG_TOUCH_FACTORY_BUILD
-	/* pen_bluetooth_connect enable by default */
-	goodix_core_data->pen_bluetooth_connect = 1;
-	ts_info("This is factory mode, set pen_bluetooth_connect as 1");
-	#endif
-	enable_stylus_in_gamemode = goodix_core_data->game_in_whitelist ? 1 : goodix_core_data->gamemode_enable ? 0 : 1;
-	/* enable = (goodix_core_data->pen_bluetooth_connect) && (!(goodix_core_data->pen_charge_connect) && enable_stylus_in_gamemode); */
-	enable = ((goodix_core_data->pen_bluetooth_connect && (!goodix_core_data->pen_charge_connect))
-		&& !goodix_core_data->pen_static_status && enable_stylus_in_gamemode);
-	if(enable_last_time == enable) {
-		if(!enforce_send_cmd) {
-			goto goodix_set_pen_enable_out;
-		}
-	}
-
-	ret = brl_send_stylus_status(goodix_core_data,!!enable);
-	if (ret < 0) {
-		ts_info("brl_send_stylus_status fail! ret=%d\n", ret);
-		goto goodix_set_pen_enable_out;
-	}
-
-	if(enforce_send_cmd && (enable_last_time == enable) ) {
-		/* skip notify surfaceflinger */
-		ts_info("enable_last_time = %d, enable = %d, enforce_send_cmd = %d, skip notify surfaceflinger", enable_last_time, enable, enforce_send_cmd);
-		goto goodix_set_pen_enable_out;
-	}
-	update_stylus_connect_status_value(!!enable);
-
-#if TOUCH_THP_SUPPORT
-	add_common_data_to_buf(0, SET_CUR_VALUE, DATA_MODE_140, 1, &enable);
-#endif
-
-	enable_last_time = enable;
-
-goodix_set_pen_enable_out:
-
-	return ret;
-}
-
-static void goodix_pen_hopping_frequency(uint8_t pen_id, uint8_t pen_hopping_frequency)
-{
-	int cmd = 0;
-	char* mesg[2];
-	char cmd_str[MIPP_MAX_UEVENT_LENGTH];
-	struct device* device = NULL;
-
-	if(IS_ERR_OR_NULL(for_stylus_spi)) {
-        ts_err("spi client has not been registered\n");
-        return;
-    }
-
-	cmd = ((int)MIPP_PEN_FREQUENCY << 16) | ((pen_id & 0xFF) << 8) | (pen_hopping_frequency & 0xFF);
-	if(snprintf(cmd_str, sizeof(cmd_str), "MIPP_PEN_STATE=%d", cmd) < 0) {
-		ts_err("failed to copy cmd\n");
-		return;
-	}
-
-	mesg[0] = cmd_str;
-	mesg[1] = NULL;
-
-	device = &for_stylus_spi->dev;
-	kobject_uevent_env(&device->kobj, KOBJ_CHANGE, mesg);
-	ts_info("send pen hopping cmd: %x\n", cmd);
-}
-
-#define GOODIX_IC_HOPPING_FREQUENCY 0x6D
-static int32_t goodix_set_ic_pen_freq(void)
-{
-	struct goodix_ts_cmd cmd;
-	cmd.cmd = GOODIX_IC_HOPPING_FREQUENCY;
-	cmd.len = 5;
-	cmd.data[0] = 1;
-	if (goodix_core_data->hw_ops->send_cmd(goodix_core_data, &cmd)) {
-		ts_err("failed send IC hopping frequency cmd");
-		return -EINVAL;
-	} else {
-		ts_info("success send IC hopping frequency cmd");
-	}
-
-	return 0;
-}
-
-#define GOODIX_IC_START_FH_TEST 0x6E
-static int32_t goodix_start_hopping_freq(int value)
-{
-	struct goodix_ts_cmd cmd;
-	cmd.cmd = GOODIX_IC_START_FH_TEST;
-	cmd.len = 5;
-	cmd.data[0] = value;
-	if (goodix_core_data->hw_ops->send_cmd(goodix_core_data, &cmd)) {
-		ts_err("failed test IC hopping frequency");
-		return -EINVAL;
-	} else {
-		ts_info("success test IC hopping frequency %d", value);
-	}
-
-	return 0;
-}
-#endif
 static void goodix_set_cur_value(int mode, int *value)
 {
 	int gtp_mode = mode;
@@ -3835,101 +3591,6 @@ static void goodix_set_cur_value(int mode, int *value)
 		case DATA_MODE_154:
 			goodix_htc_set_gesture_feedback(gtp_value);
 			break;
-#ifdef TOUCH_STYLUS_SUPPORT
-		case DATA_MODE_29:
-			goodix_core_data->pen_static_status = !!gtp_value;
-			update_pen_status(false);
-			release_pen_event();
-		   	/* brl_send_stylus_status(goodix_core_data, !!gtp_value); */
-			break;
-		case DATA_MODE_20:
-			if (gtp_value == -1) {
-				goodix_core_data->pen_count = 0;
-				release_pen_event();
-				return;
-			}
-			if (!!(gtp_value >> 4)) {
-				/* connect logic */
-				if ((gtp_value & 0x0F) == 3) {
-					goodix_core_data->pen_count ++ ;
-				} else if ((gtp_value & 0x0F) == 1 || (gtp_value & 0x0F) == 2) {
-					goodix_core_data->pen_shield_flag = 1;//shield K81P/M81P
-					ts_info("Xiaomi stylus Generation one connect, sheild pen connection");
-				}
-			} else {
-				/* disconnect logic */
-				if ((gtp_value & 0x0F) == 3) {
-					goodix_core_data->pen_count -- ;
-				} else if ((gtp_value & 0x0F) == 1 || (gtp_value & 0x0F) == 2) {
-					goodix_core_data->pen_shield_flag = 0;//open it
-					ts_info("Xiaomi stylus Generation one disconnect, open pen connection");
-				}
-			}
-
-			if (goodix_core_data->pen_shield_flag){
-				/* sheild pen connection */
-				goodix_core_data->pen_bluetooth_connect = 0;
-			} else {
-				if (!!goodix_core_data->pen_count) {
-					/* M80P connect num >= 1 */
-					goodix_core_data->pen_bluetooth_connect = 1;
-					if (driver_get_touch_mode(TOUCH_ID, DATA_MODE_24) &&
-						!(goodix_core_data->gesture_enabled & STYLUS_SINGLE_TAP_EN)) {
-							goodix_core_data->gesture_enabled |= STYLUS_SINGLE_TAP_EN;
-							ts_info("stylus quick note enable after reboot");
-						}
-				} else {
-					/* M80P connect num = 0 */
-					goodix_core_data->pen_bluetooth_connect = 0;
-				}
-			}
-			ts_info("gtp_value is 0x%02X, pen status is %s, pen id is %d, pen_bluetooth_connect is %d, pen_count is %d", \
-					gtp_value, (gtp_value >> 4) ? "connect":"disconnct", gtp_value & 0x0F, \
-					goodix_core_data->pen_bluetooth_connect, goodix_core_data->pen_count);
-/*
-#if TOUCH_THP_SUPPORT
-					add_common_data_to_buf(0, SET_CUR_VALUE, DATA_MODE_140, 1, &goodix_core_data->pen_bluetooth_connect);
-#endif
-*/
-			update_pen_status(false);
-			release_pen_event();
-			break;
-		case DATA_MODE_33:
-
-			goodix_core_data->game_in_whitelist_bak = !!gtp_value;
-			if (goodix_core_data->gamemode_enable && !gtp_value) {
-				return;
-			}
-			if (goodix_core_data->game_in_whitelist != goodix_core_data->game_in_whitelist_bak) {
-				goodix_core_data->game_in_whitelist = goodix_core_data->game_in_whitelist_bak;
-				update_pen_status(!!goodix_core_data->gamemode_enable);
-			}
-			break;
-		case DATA_MODE_22:
-			if (!goodix_core_data->pen_bluetooth_connect) {
-				ts_info("MIPP stylus not connect, skip");
-				return;
-			}
-			if ((gtp_value & 0xFF) == MIPP_PEN_FREQUENCY) {
-				if (goodix_core_data->stylus_hopping_freq_ack)
-					goodix_set_ic_pen_freq();
-					/*Touch IC hopping freq*/
-			} else if ((gtp_value & 0xFF) == MIPP_PEN_VOLTAGE) {
-				ts_info("MIPP stylus voltage has mofified");
-			} else if ((gtp_value & 0xFF) >= MIPP_BOTH_HOPPING_OFFSET && (gtp_value & 0xFF) < MIPP_PEN_HOPPING_OFFSET) {
-				goodix_core_data->stylus_hopping_freq_ack = true;
-				goodix_pen_hopping_frequency(0, (gtp_value & 0xFF) - MIPP_BOTH_HOPPING_OFFSET);
-				/*Touch IC start Stylus hopping freq wait stylus ack*/
-			} else if ((gtp_value & 0xFF) >= MIPP_PEN_HOPPING_OFFSET && (gtp_value & 0xFF) < MIPP_PEN_FREQUENCY) {
-				goodix_core_data->stylus_hopping_freq_ack = false;;
-				goodix_pen_hopping_frequency(0, (gtp_value & 0xFF) - MIPP_PEN_HOPPING_OFFSET);
-				/* stylus start stylus hopping freq*/
-			} else {
-				ts_info("MIPP stylus id update %d", (gtp_value >> 8) & 0xFF);
-			}
-
-			break;
-#endif
 		default:
 			ts_err("not support mode, mode(%d)!", gtp_mode);
 			break;
@@ -4260,37 +3921,10 @@ upgrade:
 #endif
 
 	register_touch_panel(cd->bus->dev, TOUCH_ID, &hardware_param, &hardware_operation);
-#if defined(TOUCH_PLATFORM_XRING)
-	xiaomi_register_panel_notifier(cd->bus->dev, TOUCH_ID,
-		XRING_PANEL_EVENT_TAG_PRIMARY, XRING_PANEL_EVENT_CLIENT_PRIMARY_TOUCH);
-#else
 	xiaomi_register_panel_notifier(cd->bus->dev, TOUCH_ID,
 		PANEL_EVENT_NOTIFICATION_PRIMARY, PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH);
 #endif
-#endif
 
-#ifdef TOUCH_STYLUS_SUPPORT
-	/* goodix_core_data->gesture_command_delayed = -1; */
-	goodix_core_data->pen_bluetooth_connect = 0;
-	goodix_core_data->pen_count = 0;
-	goodix_core_data->pen_shield_flag = 0;
-	goodix_core_data->gamemode_enable = 0;
-	goodix_core_data->game_in_whitelist = 0;
-	goodix_core_data->game_in_whitelist_bak = 0;
-	goodix_core_data->pen_static_status = 0;
-	/* mutex_init(&goodix_core_data->pen_switch_lock); */
-	INIT_WORK(&goodix_core_data->pen_charge_state_change_work, goodix_pen_charge_state_change_work);
-	goodix_core_data->pen_charge_connect = false;
-
-	goodix_core_data->pen_charge_state_notifier.notifier_call = goodix_pen_charge_state_notifier_callback;
-	ret = pen_charge_state_notifier_register_client(&goodix_core_data->pen_charge_state_notifier);
-	if(ret) {
-		ts_info("register pen_connect_status change notifier failed. ret=%d\n", ret);
-	}
-#ifdef CONFIG_TOUCH_FACTORY_BUILD
-   	update_pen_status(true);
-#endif
-#endif
 #ifdef TOUCH_TRUSTED_SUPPORT
 	if (cd->qts_en) {
 		ts_info("enable QTS");

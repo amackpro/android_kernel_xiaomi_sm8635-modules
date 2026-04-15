@@ -38,9 +38,7 @@
 
 static struct platform_device *goodix_pdev;
 struct goodix_bus_interface goodix_spi_bus;
-#ifdef TOUCH_STYLUS_SUPPORT
-struct spi_device *for_stylus_spi = NULL;
-#endif
+
 struct device_node *gf_spi_dp;
 /**
  * goodix_spi_read_bra- read device register through spi bus
@@ -277,9 +275,7 @@ static int goodix_spi_probe(struct spi_device *spi)
 	else
 		goodix_spi_bus.read = goodix_spi_read;
 	goodix_spi_bus.write = goodix_spi_write;
-#ifdef TOUCH_STYLUS_SUPPORT
-	for_stylus_spi = spi;
-#endif
+
 	/* ts core device */
 	goodix_pdev = kzalloc(sizeof(struct platform_device), GFP_KERNEL);
 	if (!goodix_pdev)

@@ -29,12 +29,6 @@
 #endif
 #include "../xiaomi/xiaomi_touch.h"
 
-#if defined(TOUCH_PLATFORM_XRING)
-#include <linux/spi/spi.h>
-#include <linux/err.h>
-#include <linux/errno.h>
-#include <linux/types.h>
-#endif
 #ifdef TOUCH_TRUSTED_SUPPORT
 #include <linux/spi/spi.h>
 #include "../qts/qts_core.h"
@@ -43,12 +37,8 @@
 // #define GOODIX_DEBUG_SPI
 
 #define GOODIX_CORE_DRIVER_NAME			"goodix_ts"
-#define GOODIX_PEN_DRIVER_NAME			"goodix_ts,pen"
 #define GOODIX_DRIVER_VERSION			"gt9916-2024.10.11-01"
 #define GOODIX_MAX_TOUCH				10
-#define GOODIX_PEN_MAX_PRESSURE			8192
-#define GOODIX_MAX_PEN_KEY 				2
-#define GOODIX_PEN_MAX_TILT				60
 #define GOODIX_CFG_MAX_SIZE				4096
 #define GOODIX_MAX_STR_LABLE_LEN		40
 #define GOODIX_MAX_FRAMEDATA_LEN		2000
@@ -97,10 +87,7 @@
 #define SINGLE_TAP_EN    0x01
 #define DOUBLE_TAP_EN    0x02
 #define FOD_EN           0x04
-#ifdef  TOUCH_STYLUS_SUPPORT
-#define STYLUS_SINGLE_TAP_EN 0x08
-#define PAD_SINGLE_TAP_EN 0x10
-#endif
+
 
 #define TOUCH_ID			0
 #define FLASH_WRITE_MAX_LEN				4096
@@ -114,19 +101,7 @@
 #define CSOT_CFG_WITH_SELF_ID			0x658BD1E7 // goodix_cfg_group-0x5C_658BD1E7-WithSelf.bin, [Default]
 #define CSOT_CFG_SELF_DIS_ID			0x658CE230 // goodix_cfg_group-0x66_658CE230-SelfDis.bin
 
-#ifdef TOUCH_STYLUS_SUPPORT
-/* MIPP Start */
-#define MIPP_PEN_VOLTAGE 0x32
-#define MIPP_PEN_FREQUENCY 0x31
-#define MIPP_PEN_TIME_OFFSET 9
-#define MIPP_PEN_TIME_LENGTH 6
-#define MIPP_PEN_DATA_LENGTH 15
-#define MIPP_MAX_BUFFER_LENGTH 8
-#define MIPP_MAX_UEVENT_LENGTH 30
-#define MIPP_PEN_HOPPING_OFFSET  20
-#define MIPP_BOTH_HOPPING_OFFSET 10
-/* MIPP End*/
-#endif
+
 
 enum CFG_SELF_STATE {
 	SELF_DISABLE = 0,
@@ -383,7 +358,6 @@ struct goodix_ts_board_data {
 	unsigned int panel_max_w; /*major and minor*/
 	unsigned int panel_max_p; /*pressure*/
 
-	bool pen_enable;
 	char fw[GOODIX_MAX_STR_LABLE_LEN];
 	char fw_name[GOODIX_MAX_STR_LABLE_LEN];
 	char cfg_bin[GOODIX_MAX_STR_LABLE_LEN];
@@ -424,7 +398,6 @@ struct goodix_ts_cmd {
 enum ts_event_type {
 	EVENT_INVALID = 0,
 	EVENT_TOUCH = (1 << 0), /* finger touch event */
-	EVENT_PEN = (1 << 1),   /* pen event */
 	EVENT_REQUEST = (1 << 2),
 	EVENT_GESTURE = (1 << 3),
 	EVENT_FRAME = (1 << 4),
@@ -459,14 +432,6 @@ struct goodix_ts_coords {
 	unsigned int x, y, w, p;
 };
 
-struct goodix_pen_coords {
-	int status; /* NONE, RELEASE, TOUCH */
-	int tool_type;  /* BTN_TOOL_RUBBER BTN_TOOL_PEN */
-	unsigned int x, y, p;
-	signed char tilt_x;
-	signed char tilt_y;
-};
-
 /* touch event data */
 struct goodix_touch_data {
 	int touch_num;
@@ -481,11 +446,6 @@ struct goodix_ts_key {
 	int code;
 };
 
-struct goodix_pen_data {
-	struct goodix_pen_coords coords;
-	struct goodix_ts_key keys[GOODIX_MAX_PEN_KEY];
-};
-
 #ifdef TOUCH_THP_SUPPORT
 struct tp_frame {
 	long time_ns;
@@ -497,7 +457,7 @@ struct tp_frame {
 	int dump_type;
 	u8 tic_raw[GOODIX_TIC_RAW_SIZE];
 	u8 tic_base[GOODIX_TIC_RAW_SIZE];
-#endif //TOUCH_DUMP_TIC_SUPPORT 
+#endif //TOUCH_DUMP_TIC_SUPPORT
 };
 #endif
 
@@ -513,7 +473,6 @@ struct goodix_ts_event {
 	u8 request_code; /* represent the request type */
 	u8 gesture_type;
 	struct goodix_touch_data touch_data;
-	struct goodix_pen_data pen_data;
 };
 
 enum goodix_ic_bus_type {
@@ -562,9 +521,6 @@ struct goodix_ts_hw_ops {
 	int (*game)(struct goodix_ts_core *cd, u8 data0, u8 data1, bool on);
 	int (*get_frame_data)(struct goodix_ts_core *cd, struct ts_framedata *info);
 	int (*switch_report_rate)(struct goodix_ts_core *cd, bool on);
-#ifdef TOUCH_STYLUS_SUPPORT
-	int (*send_stylus_status)(struct goodix_ts_core *cd, bool on);
-#endif
 };
 
 /*
@@ -621,7 +577,6 @@ struct goodix_ts_core {
 	struct goodix_ts_board_data board_data;
 	struct goodix_ts_hw_ops *hw_ops;
 	struct input_dev *input_dev;
-	struct input_dev *pen_dev;
 	struct class *goodix_tp_class;
 	struct device *goodix_touch_dev;
  	/* TODO counld we remove this from core data? */
@@ -701,21 +656,6 @@ struct goodix_ts_core {
 	struct completion tui_finish;
 	bool tui_process;
 #endif // TOUCH_TRUSTED_SUPPORT
-#ifdef TOUCH_STYLUS_SUPPORT
-	struct work_struct pen_charge_state_change_work;
-	struct notifier_block pen_charge_state_notifier;
-	unsigned char pen_count;
-	bool pen_shield_flag;
-	unsigned char pen_bluetooth_connect;
-	unsigned char pen_charge_connect;
-	unsigned char pen_static_status;
-	/*unsigned char need_send_hopping_ack;*/
-	unsigned char gamemode_enable;
-	bool game_in_whitelist;
-	bool game_in_whitelist_bak;
-	/* bluetooth hopping frequency*/
-	bool stylus_hopping_freq_ack;
-#endif
 };
 
 /* external module structures */
@@ -901,9 +841,7 @@ int goodix_tools_init(void);
 void goodix_tools_exit(void);
 int goodix_get_rawdata(struct device *dev, struct ts_rawdata_info *info);
 int brl_switch_report_rate(struct goodix_ts_core *cd, bool on);
-#ifdef TOUCH_STYLUS_SUPPORT
-int brl_send_stylus_status(struct goodix_ts_core *cd, bool on);
-#endif
+
 
 #ifdef TOUCH_THP_SUPPORT
 int goodix_htc_enable(int en);
@@ -937,8 +875,6 @@ extern void devm_pinctrl_put(struct pinctrl *p);
 #ifdef CONFIG_TOUCH_FACTORY_BUILD
 void ts_test_cmd_enable(bool en);
 #endif
-#ifdef TOUCH_STYLUS_SUPPORT
-int update_pen_status(bool enforce_send_cmd);
-#endif
+
 
 #endif

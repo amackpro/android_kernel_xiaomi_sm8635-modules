@@ -37,9 +37,7 @@
 #define GOODIX_GESTURE_SINGLE_TAP   0x4C
 #define GOODIX_GESTURE_FOD_DOWN     0x46
 #define GOODIX_GESTURE_FOD_UP       0x55
-#ifdef  TOUCH_STYLUS_SUPPORT
-#define GOODIX_GESTURE_STYLUS_SINGLE_TAP 0xBE
-#endif
+
 #define GOODIX_GESTURE_FOD_OFFSET   17
 
 
@@ -237,37 +235,6 @@ int goodix_gesture_ist(struct goodix_ts_core *cd)
 		input_sync(cd->input_dev);
 		goto gesture_ist_exit;
 		break;
-#ifdef TOUCH_STYLUS_SUPPORT
-	case GOODIX_GESTURE_STYLUS_SINGLE_TAP:
-		if (!(cd->gesture_enabled & STYLUS_SINGLE_TAP_EN) ||
-				!cd->pen_bluetooth_connect) {
-			ts_debug("not enable STYLUS-SINGLE-TAP");
-			break;
-		}
-		ts_info("GTP gesture report stylus single tap");
-		//pen down
-		input_report_abs(cd->pen_dev, ABS_X, 1);
-		input_report_abs(cd->pen_dev, ABS_Y, 1);
-		input_report_abs(cd->pen_dev, ABS_PRESSURE, 1);
-		input_report_key(cd->pen_dev, BTN_TOUCH, 1);
-		input_report_abs(cd->pen_dev, ABS_TILT_X, 1);
-		input_report_abs(cd->pen_dev, ABS_TILT_Y, 1);
-		input_report_abs(cd->pen_dev, ABS_DISTANCE, 0);
-		input_report_key(cd->pen_dev, BTN_TOOL_PEN, 1);
-		input_sync(cd->pen_dev);
-		//pen release
-		input_report_abs(cd->pen_dev, ABS_X, 0);
-		input_report_abs(cd->pen_dev, ABS_Y, 0);
-		input_report_abs(cd->pen_dev, ABS_PRESSURE, 0);
-		input_report_abs(cd->pen_dev, ABS_TILT_X, 0);
-		input_report_abs(cd->pen_dev, ABS_TILT_Y, 0);
-		input_report_abs(cd->pen_dev, ABS_DISTANCE, 1);
-		input_report_key(cd->pen_dev, BTN_TOUCH, 0);
-		input_report_key(cd->pen_dev, BTN_TOOL_PEN, 0);
-		input_sync(cd->pen_dev);
-		goto gesture_ist_exit;
-	break;
-#endif
 	default:
 		ts_info("unsupported gesture: %x", gs_event.gesture_type);
 		break;
