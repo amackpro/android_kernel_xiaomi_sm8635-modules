@@ -891,6 +891,26 @@ static ssize_t goodix_ts_double_tap_store(struct device *dev,
 	return count;
 }
 
+/* single tap gesture show */
+static ssize_t goodix_ts_single_tap_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	int value = driver_get_touch_mode(TOUCH_ID, DATA_MODE_11);
+	return snprintf(buf, PAGE_SIZE, "state:%s\n",
+			value ? "enabled" : "disabled");
+}
+
+/* single tap gesture store */
+static ssize_t goodix_ts_single_tap_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	if (!buf || count <= 0)
+		return -EINVAL;
+	set_touch_mode(DATA_MODE_11, buf[0] != '0');
+	return count;
+}
+
 /* aod gesture show */
 static ssize_t goodix_ts_aod_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
@@ -992,6 +1012,7 @@ static DEVICE_ATTR(irq_info, 0664, goodix_ts_irq_info_show, goodix_ts_irq_info_s
 static DEVICE_ATTR(esd_info, 0664, goodix_ts_esd_info_show, goodix_ts_esd_info_store);
 static DEVICE_ATTR(debug_log, 0664, goodix_ts_debug_log_show, goodix_ts_debug_log_store);
 static DEVICE_ATTR(double_tap_enable, 0664, goodix_ts_double_tap_show, goodix_ts_double_tap_store);
+static DEVICE_ATTR(single_tap_enable, 0664, goodix_ts_single_tap_show, goodix_ts_single_tap_store);
 static DEVICE_ATTR(aod_enable, 0664, goodix_ts_aod_show, goodix_ts_aod_store);
 static DEVICE_ATTR(switch_report_rate, 0664, goodix_report_rate_show, goodix_report_rate_store);
 #ifdef TOUCH_FOD_SUPPORT
@@ -1012,6 +1033,7 @@ static struct attribute *sysfs_attrs[] = {
 	&dev_attr_esd_info.attr,
 	&dev_attr_debug_log.attr,
 	&dev_attr_double_tap_enable.attr,
+	&dev_attr_single_tap_enable.attr,
 	&dev_attr_aod_enable.attr,
 	&dev_attr_switch_report_rate.attr,
 #ifdef TOUCH_FOD_SUPPORT
