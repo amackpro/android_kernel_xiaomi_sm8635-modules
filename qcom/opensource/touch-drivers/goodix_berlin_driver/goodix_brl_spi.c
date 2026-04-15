@@ -240,6 +240,10 @@ static int goodix_spi_probe(struct spi_device *spi)
 	struct sched_param par = { .sched_priority = MAX_RT_PRIO - 2 };
 
 	ts_info("goodix spi probe in");
+
+	ret = goodix_check_ts_id_gpio(&spi->dev);
+	if (ret)
+		return ret;
 #ifdef TOUCH_TRUSTED_SUPPORT
 	goodix_set_spi_device(spi);
 #endif // TOUCH_TRUSTED_SUPPORT
@@ -320,6 +324,8 @@ static void goodix_spi_remove(struct spi_device *spi)
 static const struct of_device_id spi_matchs[] = {
 	{.compatible = "xiaomi,touch-spi",},
 	{.compatible = "xiaomi,touch-gt9926",},
+	{.compatible = "goodix,gt9916S",},
+	{.compatible = "goodix,gt9916S2",},
 	{},
 };
 #endif

@@ -205,15 +205,12 @@ int goodix_gesture_ist(struct goodix_ts_core *cd)
 #endif
 
 	case GOODIX_GESTURE_SINGLE_TAP:
-		if (!(cd->gesture_enabled & SINGLE_TAP_EN) && !(cd->gesture_enabled & PAD_SINGLE_TAP_EN)) {
+		if (!(cd->gesture_enabled & SINGLE_TAP_EN)) {
 			ts_debug("not enable SINGLE-TAP");
 			break;
 		}
 		ts_info("GTP gesture report single tap");
-		if (cd->gesture_enabled & SINGLE_TAP_EN)
-			key_value = KEY_GOTO;
-		if (cd->gesture_enabled & PAD_SINGLE_TAP_EN)
-			key_value = KEY_WAKEUP;
+		key_value = KEY_GOTO;
 		input_report_key(cd->input_dev, key_value, 1);
 		input_sync(cd->input_dev);
 		input_report_key(cd->input_dev, key_value, 0);

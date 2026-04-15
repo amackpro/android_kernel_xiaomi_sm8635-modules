@@ -168,6 +168,10 @@ static int goodix_i2c_probe(struct i2c_client *client)
 	int ret = 0;
 
 	ts_info("goodix i2c probe in");
+
+	ret = goodix_check_ts_id_gpio(&client->dev);
+	if (ret)
+		return ret;
 	ret = i2c_check_functionality(client->adapter,
 		I2C_FUNC_I2C);
 	if (!ret)
@@ -244,7 +248,7 @@ static struct i2c_driver goodix_i2c_driver = {
 		/*.owner = THIS_MODULE,*/
 		.of_match_table = of_match_ptr(i2c_matchs),
 	},
-	.probe = goodix_i2c_probe,
+	.probe_new = goodix_i2c_probe,
 	.remove = goodix_i2c_remove,
 	.id_table = i2c_id_table,
 };

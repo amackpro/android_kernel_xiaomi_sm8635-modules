@@ -24,6 +24,8 @@
 #include <linux/backlight.h>
 #include <linux/soc/qcom/panel_event_notifier.h>
 #include <linux/debugfs.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 #include <linux/input/mt.h>
@@ -38,7 +40,7 @@
 #define PINCTRL_STATE_SUSPEND		"pmx_ts_suspend"
 #define PINCTRL_STATE_BOOT			"pmx_ts_boot"
 
-#define HTC_PROJECT_CFG_NAME		"jinghu_goodix_thp_config.ini"
+#define HTC_PROJECT_CFG_NAME		"peridot_goodix_thp_config.ini"
 
 #ifdef CONFIG_TOUCH_BOOST
 #define EVENT_INPUT 0x1
@@ -52,6 +54,53 @@ struct qts_vendor_data qts_vendor_data;
 extern struct device_node *gf_spi_dp;
 struct goodix_module goodix_modules;
 int core_module_prob_sate = CORE_MODULE_UNPROBED;
+int ID_Flag = 1;
+
+#if IS_ENABLED(CONFIG_OF)
+int goodix_check_ts_id_gpio(struct device *dev)
+{
+	int ret;
+	int gpio1, gpio2;
+	int gpio_det1, gpio_det2;
+
+	gpio1 = of_get_named_gpio(dev->of_node, "goodix,ts-id1-gpio", 0);
+	if (gpio1 < 0)
+		return 0;
+
+	ret = devm_gpio_request_one(dev, gpio1, GPIOF_IN, "LCD_ID_DET1");
+	if (ret < 0)
+		return -EINVAL;
+
+	gpio_det1 = gpio_get_value(gpio1);
+
+	gpio2 = of_get_named_gpio(dev->of_node, "goodix,ts-id2-gpio", 0);
+	if (gpio2 < 0)
+		return 0;
+
+	ret = devm_gpio_request_one(dev, gpio2, GPIOF_IN, "LCD_ID_DET2");
+	if (ret < 0)
+		return -EINVAL;
+
+	gpio_det2 = gpio_get_value(gpio2);
+
+	ts_info("gpio_det1 = %d, gpio_det2 = %d\n", gpio_det1, gpio_det2);
+
+	if (!gpio_det1 && !gpio_det2) {
+		ID_Flag = 0;
+		ts_info("goodix touchscreen detected with ID_Flag = %d", ID_Flag);
+		return 0;
+	}
+
+	if (gpio_det1 && !gpio_det2) {
+		ID_Flag = 2;
+		ts_info("goodix touchscreen detected with ID_Flag = %d", ID_Flag);
+		return 0;
+	}
+
+	ts_err("goodix touchscreen not detected");
+	return -ENODEV;
+}
+#endif
 struct goodix_ts_core *goodix_core_data;
 static int goodix_send_ic_config(struct goodix_ts_core *cd, int type);
 static int goodix_resume_suspend(bool is_resume, u8 gesture_type);
@@ -1262,11 +1311,11 @@ static int goodix_parse_dt_resolution(struct device_node *node,
 		return ret;
 	}
 
-	ret = of_property_read_u32(node, "goodix,support-super-resolution",
-				&board_data->super_resolution_factor);
-	if (ret < 0) {
-		ts_err("Failed get super-resolution-factor property");
-		return ret;
+	board_data->invert_xy = of_property_read_bool(node,
+					"invert_xy");
+	if (board_data->invert_xy) {
+		swap(board_data->panel_max_x, board_data->panel_max_y);
+		ts_info("Panel max x and max y inverted\n");
 	}
 
 	ret = of_property_read_u32(node, "goodix,panel-max-w",
@@ -1280,7 +1329,14 @@ static int goodix_parse_dt_resolution(struct device_node *node,
 				&board_data->panel_max_p);
 	if (ret) {
 		ts_err("failed get panel-max-p, use default");
-		board_data->panel_max_p = GOODIX_PEN_MAX_PRESSURE;
+		board_data->panel_max_p = 8192;
+	}
+
+	ret = of_property_read_u32(node, "goodix,super-resolution-factor",
+				&board_data->super_resolution_factor);
+	if (ret < 0) {
+		ts_info("super-resolution-factor not found, default to 16");
+		board_data->super_resolution_factor = 16;
 	}
 
 	return 0;
@@ -1296,11 +1352,22 @@ static int goodix_parse_dt(struct device_node *node,
 	struct goodix_ts_board_data *board_data)
 {
 	const char *name_tmp;
+	const char *fw_prop, *cfg_prop;
 	int r;
 
 	if (!board_data) {
 		ts_err("invalid board data");
 		return -EINVAL;
+	}
+
+	fw_prop  = "goodix,firmware-name";
+	cfg_prop = "goodix,config-name";
+	if (ID_Flag == 0) {
+		fw_prop  = "goodix,firmware-name-second";
+		cfg_prop = "goodix,config-name-second";
+		ts_info("ID_Flag=0, using secondary DT keys: %s / %s", fw_prop, cfg_prop);
+	} else {
+		ts_info("ID_Flag=%d, using primary DT keys: %s / %s", ID_Flag, fw_prop, cfg_prop);
 	}
 
 	r = of_get_named_gpio(node, "goodix,avdd-gpio", 0);
@@ -1349,7 +1416,7 @@ static int goodix_parse_dt(struct device_node *node,
 	if (!r) {
 		ts_info("avdd name from dt: %s", name_tmp);
 		if (strlen(name_tmp) < sizeof(board_data->avdd_name))
-			strncpy(board_data->avdd_name,
+			strlcpy(board_data->avdd_name,
 				name_tmp, sizeof(board_data->avdd_name));
 		else
 			ts_info("invalied avdd name length: %ld > %ld",
@@ -1362,7 +1429,7 @@ static int goodix_parse_dt(struct device_node *node,
 	if (!r) {
 		ts_info("iovdd name from dt: %s", name_tmp);
 		if (strlen(name_tmp) < sizeof(board_data->iovdd_name))
-			strncpy(board_data->iovdd_name,
+			strlcpy(board_data->iovdd_name,
 				name_tmp, sizeof(board_data->iovdd_name));
 		else
 			ts_info("invalied iovdd name length: %ld > %ld",
@@ -1370,28 +1437,45 @@ static int goodix_parse_dt(struct device_node *node,
 				sizeof(board_data->iovdd_name));
 	} else {
 		ts_info("iovdd can't find from dt");
-		/*o80只有3.3v供电没有1.8v供电，因此解析设备树时没有iovdd*/
 	}
 
 	/* get firmware file name */
-	r = of_property_read_string(node, "goodix,firmware-name", &name_tmp);
+	r = of_property_read_string(node, fw_prop, &name_tmp);
 	if (!r) {
 		ts_info("firmware name from dt: %s", name_tmp);
-		strncpy(board_data->fw, name_tmp, sizeof(board_data->fw));
+		strlcpy(board_data->fw_name, name_tmp, sizeof(board_data->fw_name));
 	} else {
 		ts_info("can't find firmware name, use default: %s", TS_DEFAULT_FIRMWARE);
-		strncpy(board_data->fw_name, TS_DEFAULT_FIRMWARE, GOODIX_MAX_STR_LABLE_LEN);
+		strlcpy(board_data->fw_name, TS_DEFAULT_FIRMWARE, sizeof(board_data->fw_name));
 	}
 
 	/* get config file name */
-	r = of_property_read_string(node, "goodix,config-name", &name_tmp);
+	r = of_property_read_string(node, cfg_prop, &name_tmp);
 	if (!r) {
 		ts_info("config name from dt: %s", name_tmp);
-		strncpy(board_data->cfg_bin, name_tmp, sizeof(board_data->cfg_bin));
+		strlcpy(board_data->cfg_name, name_tmp, sizeof(board_data->cfg_name));
+		strlcpy(board_data->cfg_bin_name, name_tmp, sizeof(board_data->cfg_bin_name));
 	} else {
 		ts_info("can't find config name, use default: %s", TS_DEFAULT_CFG_BIN);
-		strncpy(board_data->cfg_bin_name, TS_DEFAULT_CFG_BIN, GOODIX_MAX_STR_LABLE_LEN);
+		strlcpy(board_data->cfg_name, TS_DEFAULT_CFG_BIN, sizeof(board_data->cfg_name));
+		strlcpy(board_data->cfg_bin_name, TS_DEFAULT_CFG_BIN, sizeof(board_data->cfg_bin_name));
 	}
+
+	/* get second firmware file name */
+	/* Secondary names are now handled by ID_Flag and fw_prop/cfg_prop logic above */
+
+	/* get xyz resolutions */
+	r = goodix_parse_dt_resolution(node, board_data);
+	if (r) {
+		ts_err("Failed to parse resolutions:%d", r);
+		return r;
+	}
+
+	/*get pen-enable switch and pen keys*/
+	board_data->pen_enable = of_property_read_bool(node,
+					"goodix,pen-enable");
+	if (board_data->pen_enable)
+		ts_info("goodix pen enabled");
 
 	r = of_property_count_u32_elems(node, "goodix,touch-expert-array");
 	if (r == GAME_ARRAY_LEN * GAME_ARRAY_SIZE) {
@@ -1399,15 +1483,8 @@ static int goodix_parse_dt(struct device_node *node,
 						"goodix,touch-expert-array",
 						board_data->touch_expert_array,
 						r);
-	} else {
+	} else if (r > 0) {
 		ts_err("Failed to parse touch-expert-array:%d", r);
-	}
-
-	/* get xyz resolutions */
-	r = goodix_parse_dt_resolution(node, board_data);
-	if (r) {
-		ts_err("Failed to parse resolutions:%d", r);
-		return r;
 	}
 
 #ifdef TOUCH_TRUSTED_SUPPORT
@@ -1421,9 +1498,12 @@ static int goodix_parse_dt(struct device_node *node,
 		ts_debug("qts touch type from dt: %s", qts_touch_type);
 	} else {
 		ts_err("fail to get touch type(%s)", qts_touch_type);
-		return r;
 	}
 #endif // TOUCH_TRUSTED_SUPPORT
+
+	ts_debug("[DT]x:%d, y:%d, w:%d, p:%d", board_data->panel_max_x,
+		 board_data->panel_max_y, board_data->panel_max_w,
+		 board_data->panel_max_p);
 
 	return 0;
 }
@@ -1474,8 +1554,8 @@ finger_pos:
 
 	for (i = 0; i < GOODIX_MAX_TOUCH; i++) {
 		if (touch_data->coords[i].status == TS_TOUCH) {
-			touch_data->coords[i].x *= goodix_core_data->board_data.super_resolution_factor;
-			touch_data->coords[i].y *= goodix_core_data->board_data.super_resolution_factor;
+			touch_data->coords[i].x /= goodix_core_data->board_data.super_resolution_factor;
+			touch_data->coords[i].y /= goodix_core_data->board_data.super_resolution_factor;
 			ts_debug("report: id %d, x %d, y %d, w %d, factor %d", i,
 				touch_data->coords[i].x, touch_data->coords[i].y,
 				touch_data->coords[i].w,
@@ -1486,6 +1566,8 @@ finger_pos:
 					touch_data->coords[i].x);
 			input_report_abs(dev, ABS_MT_POSITION_Y,
 					touch_data->coords[i].y);
+			input_report_abs(dev, ABS_X, touch_data->coords[i].x);
+			input_report_abs(dev, ABS_Y, touch_data->coords[i].y);
 #ifdef TOUCH_FOD_SUPPORT
 			if ((goodix_core_data->eventsdata & 0x08) != 0x08 || !driver_get_touch_mode(TOUCH_ID, DATA_MODE_10))
 				touch_data->overlay = 0;
@@ -1637,11 +1719,7 @@ static irqreturn_t goodix_ts_threadirq_func(int irq, void *data)
 			goodix_ts_report_finger(core_data->input_dev,
 					&ts_event->touch_data);
 		}
-		if (core_data->board_data.pen_enable &&
-				ts_event->event_type == EVENT_PEN) {
-			goodix_ts_report_pen(core_data->pen_dev,
-					&ts_event->pen_data);
-		}
+
 		if (ts_event->event_type == EVENT_REQUEST) {
 			goodix_ts_request_handle(core_data, ts_event);
 		}
@@ -1932,10 +2010,14 @@ static int goodix_ts_input_dev_config(struct goodix_ts_core *core_data)
 #endif
 
 	/* set input parameters */
+	input_set_abs_params(input_dev, ABS_X,
+				0, ts_bdata->panel_max_x / ts_bdata->super_resolution_factor - 1, 0, 0);
+	input_set_abs_params(input_dev, ABS_Y,
+				0, ts_bdata->panel_max_y / ts_bdata->super_resolution_factor - 1, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X,
-				0, ts_bdata->panel_max_x - 1, 0, 0);
+				0, ts_bdata->panel_max_x / ts_bdata->super_resolution_factor - 1, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y,
-				0, ts_bdata->panel_max_y - 1, 0, 0);
+				0, ts_bdata->panel_max_y / ts_bdata->super_resolution_factor - 1, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR,
 				0, ts_bdata->panel_max_w, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_WIDTH_MAJOR,
@@ -1963,77 +2045,7 @@ static int goodix_ts_input_dev_config(struct goodix_ts_core *core_data)
 	return 0;
 }
 
-static int goodix_ts_pen_dev_config(struct goodix_ts_core *core_data)
-{
-	struct goodix_ts_board_data *ts_bdata = board_data(core_data);
-	struct input_dev *pen_dev = NULL;
-	int r;
 
-	pen_dev = input_allocate_device();
-	if (!pen_dev) {
-		ts_err("Failed to allocated pen device");
-		return -ENOMEM;
-	}
-
-	core_data->pen_dev = pen_dev;
-	input_set_drvdata(pen_dev, core_data);
-
-	pen_dev->name = GOODIX_PEN_DRIVER_NAME;
-	pen_dev->id.product = 0xDEAD;
-	pen_dev->id.vendor = 0xBEEF;
-	pen_dev->id.version = 10427;
-
-	pen_dev->evbit[0] |= BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
-	__set_bit(ABS_X, pen_dev->absbit);
-	__set_bit(ABS_Y, pen_dev->absbit);
-	__set_bit(ABS_TILT_X, pen_dev->absbit);
-	__set_bit(ABS_TILT_Y, pen_dev->absbit);
-	__set_bit(BTN_STYLUS, pen_dev->keybit);
-	__set_bit(BTN_STYLUS2, pen_dev->keybit);
-	__set_bit(BTN_TOUCH, pen_dev->keybit);
-	__set_bit(BTN_TOOL_PEN, pen_dev->keybit);
-	__set_bit(BTN_JOYSTICK, pen_dev->keybit);
-	__set_bit(INPUT_PROP_DIRECT, pen_dev->propbit);
-	input_set_abs_params(pen_dev, ABS_X, 0, ts_bdata->panel_max_x - 1, 0, 0);
-	input_set_abs_params(pen_dev, ABS_BRAKE, 0, 360, 0, 0);
-	input_set_abs_params(pen_dev, ABS_Y, 0, ts_bdata->panel_max_y - 1, 0, 0);
-	input_set_abs_params(pen_dev, ABS_PRESSURE, 0,
-			ts_bdata->panel_max_p - 1, 0, 0);
-	input_set_abs_params(pen_dev, ABS_DISTANCE, 0, 1, 0, 0);
-	input_set_abs_params(pen_dev, ABS_TILT_X,
-			-GOODIX_PEN_MAX_TILT, GOODIX_PEN_MAX_TILT, 0, 0);
-	input_set_abs_params(pen_dev, ABS_TILT_Y,
-			-GOODIX_PEN_MAX_TILT, GOODIX_PEN_MAX_TILT, 0, 0);
-
-	input_set_capability(pen_dev, EV_KEY, KEY_WAKEUP);
-
-	r = input_register_device(pen_dev);
-	if (r < 0) {
-		ts_err("Unable to register pen device");
-		input_free_device(pen_dev);
-		return r;
-	}
-
-	return 0;
-}
-
-void goodix_ts_input_dev_remove(struct goodix_ts_core *core_data)
-{
-	if (!core_data->input_dev)
-		return;
-	input_unregister_device(core_data->input_dev);
-	input_free_device(core_data->input_dev);
-	core_data->input_dev = NULL;
-}
-
-void goodix_ts_pen_dev_remove(struct goodix_ts_core *core_data)
-{
-	if (!core_data->pen_dev)
-		return;
-	input_unregister_device(core_data->pen_dev);
-	input_free_device(core_data->pen_dev);
-	core_data->pen_dev = NULL;
-}
 
 /**
  * goodix_ts_esd_work - check hardware status and recovery
@@ -2491,7 +2503,7 @@ out:
 	}
 #endif
 
-	core_data->gamemode_enable = 0;
+
 #ifdef CONFIG_TOUCH_FACTORY_BUILD
 	goodix_ts_power_off(core_data);
 #endif
@@ -2946,13 +2958,7 @@ int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 		return ret;
 	}
 
-	if (cd->board_data.pen_enable) {
-		ret = goodix_ts_pen_dev_config(cd);
-		if (ret < 0) {
-			ts_err("failed set pen device");
-			goto err_finger;
-		}
-	}
+
 	/* request irq line */
 	ret = goodix_ts_irq_setup(cd);
 	if (ret < 0) {
@@ -3006,9 +3012,11 @@ int goodix_ts_stage2_init(struct goodix_ts_core *cd)
 	return 0;
 
 exit:
-	goodix_ts_pen_dev_remove(cd);
-err_finger:
-	goodix_ts_input_dev_remove(cd);
+	if (cd->input_dev) {
+		input_unregister_device(cd->input_dev);
+		input_free_device(cd->input_dev);
+		cd->input_dev = NULL;
+	}
 	return ret;
 }
 
@@ -3053,15 +3061,8 @@ static int goodix_send_ic_config(struct goodix_ts_core *cd, int type)
 
 static int goodix_match_panel(struct goodix_ts_core *cd)
 {
-	char name_buf[GOODIX_MAX_STR_LABLE_LEN];
-
-	snprintf(name_buf, GOODIX_MAX_STR_LABLE_LEN, "%s.bin", cd->board_data.cfg_bin);
-	strncpy(cd->board_data.cfg_bin_name, name_buf, GOODIX_MAX_STR_LABLE_LEN);
-
-	snprintf(name_buf, GOODIX_MAX_STR_LABLE_LEN, "%s.bin", cd->board_data.fw);
-	strncpy(cd->board_data.fw_name, name_buf, GOODIX_MAX_STR_LABLE_LEN);
-
-	strncpy(cd->board_data.limit_csv_name, TS_DEFAULT_LIMIT_CSV, GOODIX_MAX_STR_LABLE_LEN);
+	strlcpy(cd->board_data.limit_csv_name, TS_DEFAULT_LIMIT_CSV,
+		GOODIX_MAX_STR_LABLE_LEN);
 
 	return 0;
 }
@@ -3363,7 +3364,7 @@ void goodix_game_mode_update(long mode_update_flag, int mode_value[DATA_MODE_35]
 		case DATA_MODE_0:
 			temp_value = mode_value[DATA_MODE_0];
 			on = !!temp_value;
-			goodix_core_data->gamemode_enable = !!temp_value;
+
 			break;
 		case DATA_MODE_1:
 			break;
@@ -3436,14 +3437,18 @@ void goodix_game_mode_update(long mode_update_flag, int mode_value[DATA_MODE_35]
 static int goodix_update_cfg(struct goodix_ts_core *cd, bool enable) {
 	int ret;
 	char name_buf[GOODIX_MAX_STR_LABLE_LEN];
+	char *dot;
 
+	strlcpy(name_buf, cd->board_data.cfg_name, sizeof(name_buf));
 	if (enable) { //WithSelf
-		snprintf(name_buf, GOODIX_MAX_STR_LABLE_LEN, "%s.bin", cd->board_data.cfg_bin);
+		/* use base name */
 	} else {
-		snprintf(name_buf, GOODIX_MAX_STR_LABLE_LEN, "%s_SelfDis.bin", cd->board_data.cfg_bin);
+		dot = strrchr(name_buf, '.');
+		if (dot) *dot = '\0';
+		strlcat(name_buf, "_SelfDis.bin", sizeof(name_buf));
 	}
-	strncpy(cd->board_data.cfg_bin_name, name_buf, GOODIX_MAX_STR_LABLE_LEN);
-	ts_info("config name from: %s", cd->board_data.cfg_bin_name);
+	strlcpy(cd->board_data.cfg_bin_name, name_buf, GOODIX_MAX_STR_LABLE_LEN);
+	ts_info("config name updated to: %s", cd->board_data.cfg_bin_name);
 
 	ret = goodix_get_config_proc(cd);
 	if (ret) {
@@ -3866,21 +3871,21 @@ upgrade:
 #ifdef GOODIX_XIAOMI_TOUCHFEATURE
 
 	goodix_core_data->sync_mode = DIFF_AUTO_SYNC;
-	hardware_param.x_resolution = 2136;
-	hardware_param.y_resolution = 3200;
+	hardware_param.x_resolution = ts_bdata->panel_max_x / ts_bdata->super_resolution_factor;
+	hardware_param.y_resolution = ts_bdata->panel_max_y / ts_bdata->super_resolution_factor;
 	hardware_param.rx_num = (u16) goodix_get_rx_num();
 	hardware_param.tx_num = (u16) goodix_get_tx_num();
 	hardware_param.super_resolution_factor = ts_bdata->super_resolution_factor;
 #ifdef TOUCH_DUMP_TIC_SUPPORT
-	hardware_param.frame_data_page_size = 4;
+	hardware_param.frame_data_page_size = 1;
 #else
-	hardware_param.frame_data_page_size = 3;
+	hardware_param.frame_data_page_size = 1;
 #endif //TOUCH_DUMP_TIC_SUPPORT
-	hardware_param.frame_data_buf_size = 10;
-	hardware_param.raw_data_page_size = 5;
-	hardware_param.raw_data_buf_size = 5;
+	hardware_param.frame_data_buf_size = 5;
+	hardware_param.raw_data_page_size = 0;
+	hardware_param.raw_data_buf_size = 0;
 	memset(hardware_param.config_file_name, 0, 64);
-	memcpy(hardware_param.config_file_name, HTC_PROJECT_CFG_NAME, strlen(HTC_PROJECT_CFG_NAME));
+	strlcpy(hardware_param.config_file_name, cd->board_data.cfg_bin_name, sizeof(hardware_param.config_file_name));
 	memset(hardware_param.driver_version, 0, 64);
 	memcpy(hardware_param.driver_version, GOODIX_DRIVER_VERSION, strlen(GOODIX_DRIVER_VERSION));
 	goodix_lockdown_info_read(hardware_param.lockdown_info);
@@ -3964,7 +3969,7 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	struct goodix_bus_interface *bus_interface;
 	int ret;
 
-	ts_info("goodix_ts_probe IN THP");
+	ts_info("goodix_ts_probe IN");
 	bus_interface = pdev->dev.platform_data;
 	if (!bus_interface) {
 		ts_err("Invalid touch device");
@@ -4103,8 +4108,11 @@ static int goodix_ts_remove(struct platform_device *pdev)
 		goodix_ts_unregister_notifier(&ts_esd->esd_notifier);
 
 		goodix_fw_update_uninit();
-		goodix_ts_input_dev_remove(core_data);
-		goodix_ts_pen_dev_remove(core_data);
+		if (core_data->input_dev) {
+			input_unregister_device(core_data->input_dev);
+			input_free_device(core_data->input_dev);
+			core_data->input_dev = NULL;
+		}
 		goodix_ts_sysfs_exit(core_data);
 		goodix_ts_procfs_exit(core_data);
 		goodix_ts_power_off(core_data);
@@ -4145,7 +4153,7 @@ static int __init goodix_ts_core_init(void)
 	int ret;
 
 	ts_info("Core layer init:%s", GOODIX_DRIVER_VERSION);
-#ifdef CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI
+	#ifdef CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI
 	ret = goodix_spi_bus_init();
 #else
 	ret = goodix_i2c_bus_init();

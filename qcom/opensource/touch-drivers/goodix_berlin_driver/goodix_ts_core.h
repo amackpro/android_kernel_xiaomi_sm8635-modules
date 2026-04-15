@@ -36,28 +36,28 @@
 
 // #define GOODIX_DEBUG_SPI
 
-#define GOODIX_CORE_DRIVER_NAME			"goodix_ts"
-#define GOODIX_DRIVER_VERSION			"gt9916-2024.10.11-01"
-#define GOODIX_MAX_TOUCH				10
-#define GOODIX_CFG_MAX_SIZE				4096
-#define GOODIX_MAX_STR_LABLE_LEN		40
-#define GOODIX_MAX_FRAMEDATA_LEN		2000
+#define GOODIX_CORE_DRIVER_NAME "goodix_ts"
+#define GOODIX_DRIVER_VERSION "v1.3.4"
+#define GOODIX_MAX_TOUCH 10
+#define GOODIX_CFG_MAX_SIZE 4096
+#define GOODIX_MAX_STR_LABLE_LEN 40
+#define GOODIX_MAX_FRAMEDATA_LEN 2000
 
-#define GOODIX_NORMAL_RESET_DELAY_MS	100
-#define GOODIX_HOLD_CPU_RESET_DELAY_MS  5
+#define GOODIX_NORMAL_RESET_DELAY_MS 100
+#define GOODIX_HOLD_CPU_RESET_DELAY_MS 5
 
-#define GOODIX_RETRY_3					3
-#define GOODIX_RETRY_5					5
-#define GOODIX_RETRY_10					10
+#define GOODIX_RETRY_3 3
+#define GOODIX_RETRY_5 5
+#define GOODIX_RETRY_10 10
 
-#define TS_DEFAULT_FIRMWARE				"goodix_firmware_jinghu_csot.bin"
-#define TS_DEFAULT_FIRMWARE_1			"goodix_firmware_1.bin"
-#define TS_DEFAULT_CFG_BIN 				"goodix_cfg_group_jinghu_csot.bin"
-#define TS_DEFAULT_CFG_BIN_1 			"goodix_cfg_group_1.bin"
-#define TS_DEFAULT_LIMIT_CSV			"goodix_test_limits"
+#define TS_DEFAULT_FIRMWARE "goodix_firmware_peridot_csot.bin"
+#define TS_DEFAULT_FIRMWARE_1 "goodix_firmware_1.bin"
+#define TS_DEFAULT_CFG_BIN "goodix_cfg_group_peridot_csot.bin"
+#define TS_DEFAULT_CFG_BIN_1 "goodix_cfg_group_1.bin"
+#define TS_DEFAULT_LIMIT_CSV "goodix_test_limits"
 
-#define GOODIX_LOCKDOWN_SIZE		8
-#define TS_LOCKDOWN_REG				0x10030
+#define GOODIX_LOCKDOWN_SIZE 8
+#define TS_LOCKDOWN_REG 0x10030
 
 #define GOODIX_XIAOMI_TOUCHFEATURE
 #define GOODIX_DEBUGFS_ENABLE
@@ -65,43 +65,42 @@
 // #define TOUCH_DUMP_TIC_SUPPORT
 /*/#define CONFIG_TOUCH_BOOST*/
 
-#define GOODIX_THP_FRAME_SIZE			9100
-#define GOODIX_THP_FRAME_HEAD_SIZE      16
+#define GOODIX_THP_FRAME_SIZE 9100
+#define GOODIX_THP_FRAME_HEAD_SIZE 16
 
-#define GTP_RESULT_INVALID				0
-#define GTP_RESULT_FAIL					1
-#define GTP_RESULT_PASS					2
+#define GTP_RESULT_INVALID 0
+#define GTP_RESULT_FAIL 1
+#define GTP_RESULT_PASS 2
 #define CONFIG_TOUCHSCREEN_GOODIX_BRL_SPI
-#define TIC_RAW_DATA_ADDR				0x11A34
-#define TIC_BASE_DATA_ADDR				0x13618
-#define GOODIX_TIC_RAW_SIZE				20 * 40 * 2
+#define TIC_RAW_DATA_ADDR 0x11A34
+#define TIC_BASE_DATA_ADDR 0x13618
+#define GOODIX_TIC_RAW_SIZE 20 * 40 * 2
 
-#define PANEL_ORIENTATION_DEGREE_0	0	/* normal portrait orientation */
-#define PANEL_ORIENTATION_DEGREE_90	1	/* anticlockwise 90 degrees */
-#define PANEL_ORIENTATION_DEGREE_180	2	/* anticlockwise 180 degrees */
-#define PANEL_ORIENTATION_DEGREE_270	3	/* anticlockwise 270 degrees */
+#define PANEL_ORIENTATION_DEGREE_0 0 /* normal portrait orientation */
+#define PANEL_ORIENTATION_DEGREE_90 1 /* anticlockwise 90 degrees */
+#define PANEL_ORIENTATION_DEGREE_180 2 /* anticlockwise 180 degrees */
+#define PANEL_ORIENTATION_DEGREE_270 3 /* anticlockwise 270 degrees */
 
-#define GAME_ARRAY_LEN    4
-#define GAME_ARRAY_SIZE   3
+#define GAME_ARRAY_LEN 4
+#define GAME_ARRAY_SIZE 3
 
-#define SINGLE_TAP_EN    0x01
-#define DOUBLE_TAP_EN    0x02
-#define FOD_EN           0x04
+#define SINGLE_TAP_EN 0x01
+#define DOUBLE_TAP_EN 0x02
+#define FOD_EN 0x04
 
+#define TOUCH_ID 0
+#define FLASH_WRITE_MAX_LEN 4096
+#define FLASH_READ_MAX_LEN 4096
+#define FLASH_PACKAGE_HEAD_LEN 6
+#define FLASH_PACKAGE_EXTRA_LEN 8
+#define FLASH_FREQ_MAX_LEN 8192
 
-#define TOUCH_ID			0
-#define FLASH_WRITE_MAX_LEN				4096
-#define FLASH_READ_MAX_LEN				4096
-#define FLASH_PACKAGE_HEAD_LEN			6
-#define FLASH_PACKAGE_EXTRA_LEN			8
-#define FLASH_FREQ_MAX_LEN				8192
-
-#define DEFAULT_WATER_PROOF_CFG			1 // 0, SelfDis; 1, WithSelf;
-#define UPDATE_CFG_MAX_NUM				5
-#define CSOT_CFG_WITH_SELF_ID			0x658BD1E7 // goodix_cfg_group-0x5C_658BD1E7-WithSelf.bin, [Default]
-#define CSOT_CFG_SELF_DIS_ID			0x658CE230 // goodix_cfg_group-0x66_658CE230-SelfDis.bin
-
-
+#define DEFAULT_WATER_PROOF_CFG 1 // 0, SelfDis; 1, WithSelf;
+#define UPDATE_CFG_MAX_NUM 5
+#define CSOT_CFG_WITH_SELF_ID \
+	0x658BD1E7 // goodix_cfg_group-0x5C_658BD1E7-WithSelf.bin, [Default]
+#define CSOT_CFG_SELF_DIS_ID \
+	0x658CE230 // goodix_cfg_group-0x66_658CE230-SelfDis.bin
 
 enum CFG_SELF_STATE {
 	SELF_DISABLE = 0,
@@ -118,13 +117,13 @@ enum CORD_PROB_STA {
 };
 
 enum GOODIX_ERR_CODE {
-	GOODIX_EBUS      = (1<<0),
-	GOODIX_ECHECKSUM = (1<<1),
-	GOODIX_EVERSION  = (1<<2),
-	GOODIX_ETIMEOUT  = (1<<3),
-	GOODIX_EMEMCMP   = (1<<4),
+	GOODIX_EBUS = (1 << 0),
+	GOODIX_ECHECKSUM = (1 << 1),
+	GOODIX_EVERSION = (1 << 2),
+	GOODIX_ETIMEOUT = (1 << 3),
+	GOODIX_EMEMCMP = (1 << 4),
 
-	GOODIX_EOTHER    = (1<<7)
+	GOODIX_EOTHER = (1 << 7)
 };
 
 enum IC_TYPE_ID {
@@ -158,10 +157,10 @@ enum CHECKSUM_MODE {
 	CHECKSUM_MODE_U16_LE,
 };
 
-#define MAX_SCAN_FREQ_NUM            10
-#define MAX_SCAN_RATE_NUM            5
-#define MAX_FREQ_NUM_STYLUS          8
-#define MAX_STYLUS_SCAN_FREQ_NUM     6
+#define MAX_SCAN_FREQ_NUM 10
+#define MAX_SCAN_RATE_NUM 5
+#define MAX_FREQ_NUM_STYLUS 8
+#define MAX_STYLUS_SCAN_FREQ_NUM 6
 #pragma pack(1)
 typedef struct __attribute__((packed)) {
 	uint32_t checksum;
@@ -182,11 +181,11 @@ struct frame_head {
 };
 
 struct goodix_fw_version {
-	u8 rom_pid[6];               /* rom PID */
-	u8 rom_vid[3];               /* Mask VID */
+	u8 rom_pid[6]; /* rom PID */
+	u8 rom_vid[3]; /* Mask VID */
 	u8 rom_vid_reserved;
-	u8 patch_pid[8];              /* Patch PID */
-	u8 patch_vid[4];              /* Patch VID */
+	u8 patch_pid[8]; /* Patch PID */
+	u8 patch_vid[4]; /* Patch VID */
 	u8 patch_vid_reserved;
 	u8 sensor_id;
 	u8 reserved[2];
@@ -300,15 +299,15 @@ struct goodix_ic_info {
  * struct ts_rawdata_info
  *
  */
-#define TS_RAWDATA_BUFF_MAX             9500
-#define TS_RAWDATA_RESULT_MAX           100
+#define TS_RAWDATA_BUFF_MAX 9500
+#define TS_RAWDATA_RESULT_MAX 100
 struct ts_rawdata_info {
 	int used_size; /*fill in rawdata size*/
 	s16 buff[TS_RAWDATA_BUFF_MAX];
 	char result[TS_RAWDATA_RESULT_MAX];
 };
 
-#define FRAME_DATA_MAX_LEN	9100 /*same as GOODIX_THP_FRAME_SIZE*/
+#define FRAME_DATA_MAX_LEN 9100 /*same as GOODIX_THP_FRAME_SIZE*/
 struct ts_framedata {
 	unsigned char buff[FRAME_DATA_MAX_LEN];
 	int used_size;
@@ -357,28 +356,31 @@ struct goodix_ts_board_data {
 	unsigned int super_resolution_factor;
 	unsigned int panel_max_w; /*major and minor*/
 	unsigned int panel_max_p; /*pressure*/
+	bool invert_xy;
 
-	char fw[GOODIX_MAX_STR_LABLE_LEN];
+	bool pen_enable;
 	char fw_name[GOODIX_MAX_STR_LABLE_LEN];
-	char cfg_bin[GOODIX_MAX_STR_LABLE_LEN];
+	char cfg_name[GOODIX_MAX_STR_LABLE_LEN];
 	char cfg_bin_name[GOODIX_MAX_STR_LABLE_LEN];
 	char limit_csv_name[GOODIX_MAX_STR_LABLE_LEN];
 	u32 touch_expert_array[GAME_ARRAY_LEN * GAME_ARRAY_SIZE];
 };
 
+extern int ID_Flag;
+
 enum goodix_fw_update_mode {
 	UPDATE_MODE_DEFAULT = 0,
-	UPDATE_MODE_FORCE = (1<<0), /* force update mode */
-	UPDATE_MODE_BLOCK = (1<<1), /* update in block mode */
-	UPDATE_MODE_FLASH_CFG = (1<<2), /* reflash config */
-	UPDATE_MODE_SRC_SYSFS = (1<<4), /* firmware file from sysfs */
-	UPDATE_MODE_SRC_HEAD = (1<<5), /* firmware file from head file */
-	UPDATE_MODE_SRC_REQUEST = (1<<6), /* request firmware */
-	UPDATE_MODE_SRC_ARGS = (1<<7), /* firmware data from function args */
+	UPDATE_MODE_FORCE = (1 << 0), /* force update mode */
+	UPDATE_MODE_BLOCK = (1 << 1), /* update in block mode */
+	UPDATE_MODE_FLASH_CFG = (1 << 2), /* reflash config */
+	UPDATE_MODE_SRC_SYSFS = (1 << 4), /* firmware file from sysfs */
+	UPDATE_MODE_SRC_HEAD = (1 << 5), /* firmware file from head file */
+	UPDATE_MODE_SRC_REQUEST = (1 << 6), /* request firmware */
+	UPDATE_MODE_SRC_ARGS = (1 << 7), /* firmware data from function args */
 };
 
 #define MAX_CMD_DATA_LEN 10
-#define MAX_CMD_BUF_LEN  16
+#define MAX_CMD_BUF_LEN 16
 #pragma pack(1)
 struct goodix_ts_cmd {
 	union {
@@ -485,10 +487,10 @@ struct goodix_bus_interface {
 	int bus_type;
 	int ic_type;
 	struct device *dev;
-	int (*read)(struct device *dev, unsigned int addr,
-			 unsigned char *data, unsigned int len);
-	int (*write)(struct device *dev, unsigned int addr,
-			unsigned char *data, unsigned int len);
+	int (*read)(struct device *dev, unsigned int addr, unsigned char *data,
+		    unsigned int len);
+	int (*write)(struct device *dev, unsigned int addr, unsigned char *data,
+		     unsigned int len);
 };
 
 struct goodix_ts_hw_ops {
@@ -500,26 +502,33 @@ struct goodix_ts_hw_ops {
 	int (*reset)(struct goodix_ts_core *cd, int delay_ms);
 	int (*irq_enable)(struct goodix_ts_core *cd, bool enable);
 	int (*read)(struct goodix_ts_core *cd, unsigned int addr,
-			unsigned char *data, unsigned int len);
+		    unsigned char *data, unsigned int len);
 	int (*write)(struct goodix_ts_core *cd, unsigned int addr,
-			unsigned char *data, unsigned int len);
+		     unsigned char *data, unsigned int len);
 	int (*read_flash)(struct goodix_ts_core *cd, unsigned int addr,
-			unsigned char *data, unsigned int len);
+			  unsigned char *data, unsigned int len);
 	int (*write_flash)(struct goodix_ts_core *cd, unsigned int addr,
-			unsigned char *data, unsigned int len);
+			   unsigned char *data, unsigned int len);
 	int (*send_cmd)(struct goodix_ts_core *cd, struct goodix_ts_cmd *cmd);
 	int (*send_config)(struct goodix_ts_core *cd, u8 *config, int len);
-	int (*read_config)(struct goodix_ts_core *cd, u8 *config_data, int size);
-	int (*read_version)(struct goodix_ts_core *cd, struct goodix_fw_version *version);
-	int (*get_ic_info)(struct goodix_ts_core *cd, struct goodix_ic_info *ic_info);
+	int (*read_config)(struct goodix_ts_core *cd, u8 *config_data,
+			   int size);
+	int (*read_version)(struct goodix_ts_core *cd,
+			    struct goodix_fw_version *version);
+	int (*get_ic_info)(struct goodix_ts_core *cd,
+			   struct goodix_ic_info *ic_info);
 	int (*esd_check)(struct goodix_ts_core *cd);
-	int (*event_handler)(struct goodix_ts_core *cd, struct goodix_ts_event *ts_event);
-	int (*after_event_handler)(struct goodix_ts_core *cd); /* clean sync flag */
-	int (*get_capacitance_data)(struct goodix_ts_core *cd, struct ts_rawdata_info *info);
+	int (*event_handler)(struct goodix_ts_core *cd,
+			     struct goodix_ts_event *ts_event);
+	int (*after_event_handler)(
+		struct goodix_ts_core *cd); /* clean sync flag */
+	int (*get_capacitance_data)(struct goodix_ts_core *cd,
+				    struct ts_rawdata_info *info);
 	int (*charger_on)(struct goodix_ts_core *cd, bool on);
 	int (*palm_on)(struct goodix_ts_core *cd, bool on);
 	int (*game)(struct goodix_ts_core *cd, u8 data0, u8 data1, bool on);
-	int (*get_frame_data)(struct goodix_ts_core *cd, struct ts_framedata *info);
+	int (*get_frame_data)(struct goodix_ts_core *cd,
+			      struct ts_framedata *info);
 	int (*switch_report_rate)(struct goodix_ts_core *cd, bool on);
 };
 
@@ -579,12 +588,12 @@ struct goodix_ts_core {
 	struct input_dev *input_dev;
 	struct class *goodix_tp_class;
 	struct device *goodix_touch_dev;
- 	/* TODO counld we remove this from core data? */
+	/* TODO counld we remove this from core data? */
 	struct goodix_ts_event ts_event;
 	unsigned long touch_id;
 	u8 eventsdata;
 
-        struct work_struct self_check_work;
+	struct work_struct self_check_work;
 
 	/* every pointer of this array represent a kind of config */
 	struct goodix_ic_config *ic_configs[GOODIX_MAX_CONFIG_GROUP];
@@ -668,35 +677,35 @@ enum goodix_ext_priority {
 	EXTMOD_PRIO_DEFAULT,
 };
 
-#define EVT_HANDLED				0
-#define EVT_CONTINUE			0
-#define EVT_CANCEL				1
-#define EVT_CANCEL_IRQEVT		1
-#define EVT_CANCEL_SUSPEND		1
-#define EVT_CANCEL_RESUME		1
-#define EVT_CANCEL_RESET		1
+#define EVT_HANDLED 0
+#define EVT_CONTINUE 0
+#define EVT_CANCEL 1
+#define EVT_CANCEL_IRQEVT 1
+#define EVT_CANCEL_SUSPEND 1
+#define EVT_CANCEL_RESUME 1
+#define EVT_CANCEL_RESET 1
 
 struct goodix_ext_module;
 /* external module's operations callback */
 struct goodix_ext_module_funcs {
 	int (*init)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+		    struct goodix_ext_module *module);
 	int (*exit)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+		    struct goodix_ext_module *module);
 	int (*before_reset)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			    struct goodix_ext_module *module);
 	int (*after_reset)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			   struct goodix_ext_module *module);
 	int (*before_suspend)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			      struct goodix_ext_module *module);
 	int (*after_suspend)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			     struct goodix_ext_module *module);
 	int (*before_resume)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			     struct goodix_ext_module *module);
 	int (*after_resume)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			    struct goodix_ext_module *module);
 	int (*irq_event)(struct goodix_ts_core *core_data,
-			struct goodix_ext_module *module);
+			 struct goodix_ext_module *module);
 };
 
 /*
@@ -732,48 +741,58 @@ struct goodix_ext_attribute {
 };
 
 /* external attrs helper macro */
-#define __EXTMOD_ATTR(_name, _mode, _show, _store)	{	\
-	.attr = {.name = __stringify(_name), .mode = _mode },	\
-	.show   = _show,	\
-	.store  = _store,	\
-}
+#define __EXTMOD_ATTR(_name, _mode, _show, _store)                     \
+	{                                                              \
+		.attr = { .name = __stringify(_name), .mode = _mode }, \
+		.show = _show,                                         \
+		.store = _store,                                       \
+	}
 
 /* external attrs helper macro, used to define external attrs */
-#define DEFINE_EXTMOD_ATTR(_name, _mode, _show, _store)	\
-static struct goodix_ext_attribute ext_attr_##_name = \
-	__EXTMOD_ATTR(_name, _mode, _show, _store);
+#define DEFINE_EXTMOD_ATTR(_name, _mode, _show, _store)       \
+	static struct goodix_ext_attribute ext_attr_##_name = \
+		__EXTMOD_ATTR(_name, _mode, _show, _store);
 
 /* log macro */
 extern bool debug_log_flag;
-#define ts_info(fmt, arg...)\
-do { \
-	struct rtc_time tm; \
-	struct timespec64 tv; \
-	unsigned long local_time; \
-	ktime_get_real_ts64(&tv); \
-	local_time = (u32)(tv.tv_sec - (sys_tz.tz_minuteswest * 60)); \
-	rtc_time64_to_tm(local_time, &tm); \
-	pr_err("[TP-Driver][%02d:%02d:%02d.%03zu] [GTP-INFO] %s %d: " fmt, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_nsec/1000000,  __func__, __LINE__, ##arg); \
-} while(0)
+#define ts_info(fmt, arg...)                                                       \
+	do {                                                                       \
+		struct rtc_time tm;                                                \
+		struct timespec64 tv;                                              \
+		unsigned long local_time;                                          \
+		ktime_get_real_ts64(&tv);                                          \
+		local_time = (u32)(tv.tv_sec - (sys_tz.tz_minuteswest * 60));      \
+		rtc_time64_to_tm(local_time, &tm);                                 \
+		pr_err("[TP-Driver][%02d:%02d:%02d.%03zu] [GTP-INFO] %s %d: " fmt, \
+		       tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_nsec / 1000000,     \
+		       __func__, __LINE__, ##arg);                                 \
+	} while (0)
 
-#define	ts_err(fmt, arg...)\
-do { \
-	struct rtc_time tm; \
-	struct timespec64 tv; \
-	unsigned long local_time; \
-	ktime_get_real_ts64(&tv); \
-	local_time = (u32)(tv.tv_sec - (sys_tz.tz_minuteswest * 60)); \
-	rtc_time64_to_tm(local_time, &tm); \
-	pr_err("[TP-Driver][%02d:%02d:%02d.%03zu] [GTP-ERR] %s %d: " fmt, tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_nsec/1000000,  __func__, __LINE__, ##arg); \
-} while(0)
+#define ts_err(fmt, arg...)                                                       \
+	do {                                                                      \
+		struct rtc_time tm;                                               \
+		struct timespec64 tv;                                             \
+		unsigned long local_time;                                         \
+		ktime_get_real_ts64(&tv);                                         \
+		local_time = (u32)(tv.tv_sec - (sys_tz.tz_minuteswest * 60));     \
+		rtc_time64_to_tm(local_time, &tm);                                \
+		pr_err("[TP-Driver][%02d:%02d:%02d.%03zu] [GTP-ERR] %s %d: " fmt, \
+		       tm.tm_hour, tm.tm_min, tm.tm_sec, tv.tv_nsec / 1000000,    \
+		       __func__, __LINE__, ##arg);                                \
+	} while (0)
 
-#define ts_debug(fmt, arg...)	{if (debug_log_flag) pr_info("[GTP-DBG][%s:%d] "fmt"\n", __func__, __LINE__, ##arg);}
+#define ts_debug(fmt, arg...)                                           \
+	{                                                               \
+		if (debug_log_flag)                                     \
+			pr_info("[GTP-DBG][%s:%d] " fmt "\n", __func__, \
+				__LINE__, ##arg);                       \
+	}
 
 /*
  * get board data pointer
  */
-static inline struct goodix_ts_board_data *board_data(
-		struct goodix_ts_core *core)
+static inline struct goodix_ts_board_data *
+board_data(struct goodix_ts_core *core)
 {
 	if (!core)
 		return NULL;
@@ -812,6 +831,7 @@ int goodix_spi_bus_init(void);
 void goodix_spi_bus_exit(void);
 int goodix_i2c_bus_init(void);
 void goodix_i2c_bus_exit(void);
+int goodix_check_ts_id_gpio(struct device *dev);
 
 #ifdef TOUCH_TRUSTED_SUPPORT
 void goodix_set_spi_device(struct spi_device *spi);
@@ -842,7 +862,6 @@ void goodix_tools_exit(void);
 int goodix_get_rawdata(struct device *dev, struct ts_rawdata_info *info);
 int brl_switch_report_rate(struct goodix_ts_core *cd, bool on);
 
-
 #ifdef TOUCH_THP_SUPPORT
 int goodix_htc_enable(int en);
 int goodix_htc_enter_idle(int *value);
@@ -869,12 +888,12 @@ int goodix_htc_set_gesture_feedback(int index);
 int goodix_htc_enable_empty_int(bool en);
 
 extern int pinctrl_select_state(struct pinctrl *p, struct pinctrl_state *s);
-extern struct pinctrl * __must_check devm_pinctrl_get(struct device *dev);
-extern struct pinctrl_state * __must_check pinctrl_lookup_state(struct pinctrl *p, const char *name);
+extern struct pinctrl *__must_check devm_pinctrl_get(struct device *dev);
+extern struct pinctrl_state *__must_check
+pinctrl_lookup_state(struct pinctrl *p, const char *name);
 extern void devm_pinctrl_put(struct pinctrl *p);
 #ifdef CONFIG_TOUCH_FACTORY_BUILD
 void ts_test_cmd_enable(bool en);
 #endif
-
 
 #endif
