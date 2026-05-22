@@ -826,29 +826,19 @@ static ssize_t goodix_ts_debug_log_store(struct device *dev,
 		goodix_core_data->need_update_cfg = 1;
 		goodix_core_data->cfg_cloud_state = true;
 		ts_info("test for update cfg, mode = 1");
-	} else if (!strncmp(buf, "60Hz", 4)) {
-		if (goodix_htc_set_active_scan_rate(60)) /* 60Hz */
-			ts_info("set 60Hz failed");
+	} else if (!strncmp(buf, "240Hz", 5)) {
+		goodix_core_data->report_rate = 240;
+		if (brl_switch_report_rate(goodix_core_data, false))
+			ts_info("set 240Hz failed");
 		else
-			ts_info("set 60Hz successfully");
+			ts_info("set 240Hz successfully");
 		return count;
-	} else if (!strncmp(buf, "68Hz", 4)) {
-		if (goodix_htc_set_active_scan_rate(68)) /* 68Hz */
-			ts_info("set 68Hz failed");
+	} else if (!strncmp(buf, "480Hz", 5)) {
+		goodix_core_data->report_rate = 480;
+		if (brl_switch_report_rate(goodix_core_data, true))
+			ts_info("set 480Hz failed");
 		else
-			ts_info("set 68Hz successfully");
-		return count;
-	} else if (!strncmp(buf, "120Hz", 5)) {
-		if (goodix_htc_set_active_scan_rate(120)) /* 120Hz */
-			ts_info("set 120Hz failed");
-		else
-			ts_info("set 120Hz successfully");
-		return count;
-	} else if (!strncmp(buf, "135Hz", 5)) {
-		if (goodix_htc_set_active_scan_rate(135)) /* 135Hz */
-			ts_info("set 135Hz failed");
-		else
-			ts_info("set 135Hz successfully");
+			ts_info("set 480Hz successfully");
 		return count;
 	}
 
@@ -977,8 +967,10 @@ static ssize_t goodix_report_rate_store(struct device *dev,
 
 	if (buf[0] == '0') {
 		goodix_core_data->report_rate = 240;
+		brl_switch_report_rate(goodix_core_data, false);
 	}  else {
 		goodix_core_data->report_rate = 480;
+		brl_switch_report_rate(goodix_core_data, true);
 	}
 
 	return count;
@@ -3535,8 +3527,7 @@ static void goodix_set_cur_value(int mode, int *value)
 			goodix_htc_enable_empty_int(!!gtp_value);
 			break;
 		case DATA_MODE_43:
-			/*brl_switch_report_rate(goodix_core_data, !!gtp_value);*/
-			ts_info("report rate temp not modify");
+			brl_switch_report_rate(goodix_core_data, !!gtp_value);
 			break;
 		case DATA_MODE_44:
 		//not to do, to thp
